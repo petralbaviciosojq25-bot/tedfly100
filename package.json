@@ -1,0 +1,12 @@
+{
+  "name": "poker-trainer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node poker_trainer_server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

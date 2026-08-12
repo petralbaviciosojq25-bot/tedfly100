@@ -1,0 +1,21 @@
+{
+  "name": "德州扑克决策训练器",
+  "short_name": "扑克训练器",
+  "description": "从翻牌前到河牌的德州扑克连续对抗与复盘训练器",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070d16",
+  "theme_color": "#0b1827",
+  "lang": "zh-CN",
+  "categories": ["games", "education"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

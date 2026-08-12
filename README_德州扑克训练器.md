@@ -1,0 +1,121 @@
+# 德州扑克完整对抗训练器
+
+打开 `texas_holdem_trainer.html` 即可使用，无需安装依赖或联网。统计会保存在浏览器本地存储中。
+
+## 使用方式
+
+1. 选择机器人 archetype 和训练场景。
+2. 从翻牌前开始连续完成决策，牌局会推进到翻牌、转牌、河牌并在最后摊牌。
+3. 阅读位置、牌面、底池、跟注额、有效筹码和对手线路。
+4. 在点击行动前，先自己说出：对手范围、自己的权益、底池赔率，以及下一条街的计划。
+5. 查看每个节点的权益、赔率、策略主线和评分；牌局结束后查看完整线路复盘。
+6. 在“风格分析”查看 VPIP、PFR、攻击因子、分街道得分、优势和漏洞；在“手牌历史”回看最近牌局。
+
+## 当前版本的定位
+
+这是一个完整连续对抗的训练器，支持 6-max 混合桌、随机发牌、Monte Carlo 权益估计和显式翻牌前范围矩阵。评分结合牌力、听牌、底池赔率、位置、下注尺度、SPR 和对手风格。它适合训练思考框架、线路一致性和减少明显错误。
+
+## 新增功能
+
+- 牌桌 UI 重新分层：牌桌、行动区、当前节点和训练仪表盘分别呈现，整体采用接近线上扑克房间的深色 felt 视觉。
+- 对手类型在行动过程中隐藏，只显示位置、状态和公开信息；牌局结束后在座位和复盘中揭示。
+- 每局结束后显示建议最优线路，并逐街对照你的行动、近似最优行动、权益、底池、跟注额、得分和偏差解释。
+- 本手问题会归类为过度跟注、过度弃牌、主动性/诈唬频率偏高、价值或保护不足、行动尺度或线路不一致。
+- 行动区增加 33%、50%、75%、125% 和全押下注尺度预设，方便快速操作。
+- 数据分析增加最近牌局趋势图、能力构成环图、分街道柱状图，同时保留 VPIP、PFR、攻击因子和平均分等精确数值。
+
+- 6-max 六个座位会混合出现四类训练机器人；当前决策节点会锁定其中一名主要对手。
+- 翻牌前范围矩阵按 UTG/HJ/CO/BTN/SB/BB 和是否面对下注给出主动、混合、防守与弃牌区域。
+- 可导入常见 PokerStars 风格 `.txt`、`.log`、`.history` 手牌文件，读取起手牌、公共牌、行动和底池摘要。
+- “水平分析”会根据样本量、节点平均分、VPIP、PFR、攻击因子、街道得分和错误类型给出当前阶段与下一重点。
+- “自适应难度”会根据过度跟注、过度诈唬、过度弃牌和街道样本不足动态提高对应场景出现概率。
+
+## 联网更新中心
+
+当前版本新增 `poker_trainer_server.mjs`，用于提供本地更新服务。它支持：
+
+- 从批准的公开 HTTPS 源抓取场景包、策略包和分析规则包；
+- 校验来源、请求超时和文件大小，并保存版本、来源、哈希和质量标签；
+- 创建/保存训练机器人和训练模型；
+- 将联网场景加入自适应难度池；
+- 对经过 `verified: true` 标记的策略条目提供训练建议。
+
+启动方式：
+
+双击 `启动联网服务.bat` 最简单；它会使用 Codex 自带的 Node.js，不依赖系统 PATH。
+
+也可以在 PowerShell 中运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\启动联网服务.ps1
+```
+
+然后打开 `http://localhost:8787/`，点击右下角“联网更新中心”。如果只双击 HTML 文件，牌局训练仍可用，但联网更新中心需要先启动这个本地服务。
+
+如需定时自动刷新已经保存过的源，可按天刷新：
+
+`启动联网服务.ps1` 默认已经设置为每天自动刷新一次。
+
+自动刷新只针对你已经添加并缓存过的源，不会自行遍历互联网。
+
+## 发布为长期访问的网站
+
+如果需要保留联网更新中心，建议把 `outputs` 文件夹内容上传到 GitHub 仓库，然后在 Render 创建 Web Service：
+
+- Runtime：Node
+- Build Command：`npm install`
+- Start Command：`npm start`
+- Health Check Path：`/api/health`
+
+仓库中已经提供 `package.json` 和 `render.yaml`。Render 会给服务分配公开网址，也支持绑定自定义域名；Node 服务必须监听公网端口，因此服务端已经改为监听 `0.0.0.0`。Render 默认文件系统是临时的，如果要长期保留在线抓取的包、机器人和模型，需要为服务配置持久化磁盘或外部数据库。[Render Web Services](https://render.com/docs/web-services)
+
+如果只需要访问牌局训练，不需要联网更新中心，也可以只上传 `texas_holdem_trainer.html` 到 GitHub Pages 或 Cloudflare Pages；这类平台适合静态 HTML/CSS/JavaScript 网站。[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)、[Cloudflare Pages](https://developers.cloudflare.com/pages/framework-guides/deploy-anything/)
+
+默认允许的公开域名包括 GitHub、Zenodo 和 Hugging Face。若确实需要其他公开 HTTPS 域名，可以在启动前设置 `ALLOW_ANY_SOURCE=1`，但建议只使用自己信任的源。
+
+### 场景包示例
+
+```json
+{
+  "name": "My Scenario Pack",
+  "version": "2026.08",
+  "license": "CC BY 4.0",
+  "items": [
+    {
+      "id": "turn-pressure-01",
+      "name": "转牌同花听牌压力",
+      "street": "turn",
+      "difficulty": "困难",
+      "hero": ["A♠", "Q♠"],
+      "board": ["J♠", "8♦", "3♣", "2♠"],
+      "pot": 80,
+      "toCall": 45,
+      "pos": "BB",
+      "villainPos": "BTN",
+      "line": "BTN 转牌下注 45"
+    }
+  ]
+}
+```
+
+### 策略包说明
+
+策略包条目可包含 `street`、`position` 和 `action`。只有明确标记 `verified: true` 的条目才会参与策略建议；普通抓取内容只会作为未验证资料缓存，避免把网页上的观点误当成 GTO 最优解。公开手牌数据和标准化格式可优先参考 PHH 规范与公开数据集，例如 [PHH 标准](https://github.com/uoftcprg/phh-std) 和 [PHH 数据集](https://github.com/uoftcprg/phh-dataset)。
+
+它不是精确的 GTO 求解器，也不是完整的多人现金桌模拟器；机器人名称是公开风格特征的训练化 archetype，不代表真实牌手的私有策略。自适应场景是在本地根据你的历史数据加权，并不会自行联网抓取新场景。若要继续升级，可以加入：
+
+- 完整的翻牌前范围与行动树；
+- 转牌、河牌连续决策和对手自适应；
+- 真实手牌历史导入与逐街复盘；
+- 按位置、底池类型、牌面纹理统计漏洞；
+- 接入预计算的 GTO 策略数据或外部求解器。
+
+## 手机 App 安装方式
+
+项目现在包含 `manifest.webmanifest`、`sw.js` 和 `icon.svg`。部署到 HTTPS 网站后即可作为 PWA 安装：
+
+- Android Chrome：打开网站 → 浏览器菜单 → “安装应用”或“添加到主屏幕”；
+- iPhone Safari：打开网站 → 分享 → “添加到主屏幕”；
+- 安装后会以独立窗口打开，并可离线进行基础牌局训练；联网更新功能需要网络。
+
+以后如果需要提交到 Google Play 或 App Store，可以用 Capacitor 封装这套 PWA，牌局核心代码无需重写。

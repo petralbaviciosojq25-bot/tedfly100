@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: poker-trainer
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: AUTO_UPDATE_MS
+        value: "86400000"
