@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=11').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=12').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -620,6 +620,101 @@ window.parseImported=function(text){
   const oldRender=window.render;
   window.render=function(){oldRender();updateHeroPosition()};
   updateHeroPosition();
+})();
+</script>
+<script>
+/* Phase 12: poker-client workbench. Keeps play, decision and long-term data in
+   separate surfaces instead of competing for space inside the felt. */
+(function(){
+  'use strict';
+  const style=document.createElement('style');
+  style.textContent=`
+    :root{--work-bg:#080c12;--work-panel:#101720;--work-panel-2:#151f2b;--work-line:#2b3948;--work-accent:#5ee0b3;--work-blue:#65adff;--work-text:#f0f6fb;--work-muted:#91a2b4}
+    body{background:radial-gradient(ellipse at 50% -15%,#273848 0,#0c1119 44%,#070a0e 100%)}
+    .app{max-width:1760px;padding:12px 18px 42px}
+    .layout{grid-template-columns:minmax(700px,1fr) minmax(330px,390px)!important;gap:16px;margin-top:16px;align-items:start}
+    .layout>section.panel{min-width:0}.layout>aside{display:block!important;min-width:0}.layout>aside>.panel:first-child{display:block!important}
+    .layout>aside>.analytics-panel{display:none!important}
+    .table{min-height:800px!important;border:9px solid #1c2731;border-radius:48%/30%;background:radial-gradient(ellipse at 50% 46%,#21866e 0,#12604f 43%,#0c4036 72%,#071f1b 100%)}
+    .table:before{inset:18px;border-color:#a2eed73b}.table:after{inset:26px}
+    .table-head{top:19px;left:26px;right:26px;z-index:20}
+    .seats{z-index:4}.seat{z-index:4}.seat.hero{display:none!important}
+    .seat-hj{left:50%;top:13%}.seat-utg{left:19%;top:29%}.seat-co{left:81%;top:29%}.seat-btn{left:86%;top:56%}.seat-sb{left:73%;top:68%}.seat-bb{left:27%;top:68%}
+    .board-block{top:31%;z-index:7}.table-meta{top:49%;z-index:8}.hero-block{top:56%;bottom:auto;z-index:9}.table-actions{z-index:15;right:24px;bottom:18px;left:24px;padding:10px 12px 11px;border-color:#46576a;background:linear-gradient(180deg,#1b2632,#0d131b 78%)}
+    .table-actions:before{content:'行动面板';display:block;margin:0 0 7px;color:#93a9bc;font-size:10px;font-weight:900;letter-spacing:1.25px;text-align:center}
+    .client-bet-rail{margin-bottom:7px}.hero-label{font-weight:900}.hero-label .hero-position{border-color:#7ee4bf77;background:#073a30c9}
+    .decision-panel{padding:0!important;overflow:hidden;border:1px solid var(--work-line)!important;border-radius:13px!important;background:var(--work-panel)!important;box-shadow:0 15px 36px #0007!important}
+    .decision-panel>.panel-title{margin:0;padding:13px 15px;border-bottom:1px solid var(--work-line);background:linear-gradient(180deg,#182431,#111923)}
+    .decision-panel .section-divider{margin:0;padding:11px 15px 7px;color:#8fa4b6;background:#0e151e}.decision-panel .section-divider:after{background:#2c3b4b}
+    .decision-panel .summary-grid,.decision-panel .stats{margin:0 12px;padding:9px;border-color:#29394a;background:#0a1017}.decision-panel .summary-grid{margin-bottom:10px}.decision-panel .stats{margin-bottom:12px}
+    .decision-panel .review{margin:0 12px 12px;padding:12px;border-left:3px solid var(--work-blue);border-radius:9px;background:#0a1119;max-height:430px}
+    .decision-panel .kv,.decision-panel .stat{background:#111b26;border-color:#27394c}.decision-panel .stat b{color:#d9efff}
+    .analytics-dock{margin-top:16px;padding:0!important;overflow:hidden;border-color:#2a3949!important;background:linear-gradient(180deg,#111923,#0b1119)!important}
+    .analytics-header{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding:17px 18px 14px;border-bottom:1px solid #2a3949;background:linear-gradient(115deg,#172636,#101821 62%,#112b28)}
+    .analytics-header h2{margin:0;color:#f2f7fb;font-size:18px}.analytics-header p{margin:4px 0 0;color:var(--work-muted);font-size:12px}.analytics-header .analytics-status{padding:5px 8px;border:1px solid #5ee0b355;border-radius:99px;background:#0a3028;color:#a9f2d7;font-size:10px;font-weight:900;white-space:nowrap}
+    .analytics-dock>.tabs{gap:0;margin:0;padding:0 14px;border-bottom:1px solid #263646;background:#101822}.analytics-dock>.tabs button{padding:11px 13px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#9db0c2;font-size:12px}.analytics-dock>.tabs button.active{border-color:var(--work-accent);color:#dffcf1;background:#17222e}
+    .analytics-dock>.tab-panel{padding:15px 16px 17px}.analytics-dock .analysis-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.analytics-dock .metric{min-height:92px;padding:13px;border-color:#2a3a4b;background:linear-gradient(145deg,#131f2b,#0d151f)}.analytics-dock .metric b{color:#e5f4ff}.analytics-dock .viz-grid{display:grid;margin-top:12px}.analytics-dock .viz-card{border-color:#293b4e;background:#0c131d}.analytics-dock .solver-coverage{margin:0 0 12px;border-color:#2d455b;background:#0b141e}
+    .profile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.profile-card{padding:14px;border:1px solid #2b3d50;border-radius:10px;background:#0d1621}.profile-card h3{margin:0 0 5px;font-size:14px;color:#e9f3fb}.profile-card p{margin:0;color:#aebdcb;font-size:12px;line-height:1.6}.profile-card strong{display:block;margin:9px 0 3px;color:#68dfb4;font-size:23px}.profile-card.warn strong{color:#f0c566}.training-plan{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:12px 13px;border:1px solid #386956;border-radius:10px;background:linear-gradient(115deg,#103127,#10202a)}.training-plan b{display:block;color:#def8eb;font-size:13px}.training-plan span{display:block;margin-top:2px;color:#a6c7bc;font-size:11px}.training-plan button{flex:none;border:1px solid #78dfb9;border-radius:7px;background:#4bc99a;color:#06231a;padding:8px 10px;font:800 12px inherit;cursor:pointer}.training-plan button:hover{filter:brightness(1.08)}
+    .analytics-dock .history{max-height:430px}.analytics-dock .range-grid{max-width:700px}
+    @media(max-width:1120px){.layout{grid-template-columns:minmax(580px,1fr) 330px!important}.table{min-height:780px!important}.seat{width:172px}.seat-sb{left:74%}.seat-bb{left:26%}}
+    @media(max-width:860px){
+      .app{padding:7px 8px 28px}.layout{grid-template-columns:1fr!important;gap:10px;margin-top:9px}.layout>aside{display:block!important}.layout>aside>.panel:first-child{display:block!important}
+      .table{min-height:790px!important;border-width:6px;border-radius:42%/25%}.table:before{inset:12px}.table:after{inset:18px}
+      .table-head{top:12px;left:14px;right:14px}.seat{width:105px}.seat-avatar{width:30px;height:30px;font-size:11px}.seat-card{padding:5px 6px}.seat b{font-size:10px}.seat .seat-meta,.seat .seat-action{font-size:9px}
+      .seat-hj{top:13%}.seat-utg{left:17%;top:28%}.seat-co{left:83%;top:28%}.seat-btn{left:84%;top:55%}.seat-sb{left:85%;top:69%}.seat-bb{left:15%;top:69%}
+      .board-block{top:31%;min-width:0;width:94%}.cards{min-height:76px;gap:4px}.card-face{width:47px;height:66px;font-size:18px}.table-meta{top:47%;min-width:0;width:89%;gap:8px;font-size:10px}.table-meta strong{font-size:13px}.table-meta .muted{display:none}
+      .hero-block{top:51%}.hero-block .card-face{width:58px;height:80px;font-size:23px}.table-actions{right:8px;bottom:9px;left:8px;padding:8px}.size-row{margin-bottom:5px}.size-row button{min-width:0;flex:1;padding:5px 2px;font-size:10px}.action-row{gap:5px}.action-row button{min-height:42px;font-size:11px}
+      .decision-panel>.panel-title{padding:12px}.decision-panel .stats{grid-template-columns:repeat(4,1fr)}.decision-panel .review{max-height:none;overflow:visible}.analytics-dock{margin-top:10px}.analytics-header{align-items:flex-start;padding:14px;flex-direction:column}.analytics-dock>.tab-panel{padding:12px}.analytics-dock .analysis-grid{grid-template-columns:repeat(2,1fr)}.analytics-dock .viz-grid{grid-template-columns:1fr}.profile-grid{grid-template-columns:1fr}.training-plan{align-items:flex-start;flex-direction:column}.training-plan button{width:100%}
+    }
+    @media(max-width:420px){.table{min-height:770px!important}.seat{width:84px}.seat-avatar{display:none}.seat-sb{left:86%;top:69%}.seat-bb{left:14%;top:69%}.hero-block{top:51%}.hero-block .card-face{width:54px;height:75px;font-size:22px}.table-meta{top:47%;width:91%;gap:5px}.decision-panel .stats{grid-template-columns:1fr 1fr}.analytics-dock>.tabs{overflow-x:auto;white-space:nowrap}.analytics-dock>.tabs button{flex:none;padding:11px 10px}}
+  `;
+  document.head.appendChild(style);
+
+  const layout=document.querySelector('.layout');
+  const aside=layout?.querySelector(':scope>aside');
+  const sections=aside?[...aside.querySelectorAll(':scope>section.panel')]:[];
+  const analytics=sections[1];
+  if(layout&&analytics&&!document.querySelector('.analytics-dock')){
+    analytics.classList.add('analytics-dock');
+    layout.insertAdjacentElement('afterend',analytics);
+    const header=document.createElement('header');header.className='analytics-header';
+    header.innerHTML='<div><h2>训练数据中心</h2><p>把短期决策、风格倾向与长期漏洞拆开看。</p></div><span class="analytics-status">训练数据已本地保存</span>';
+    analytics.insertBefore(header,analytics.firstChild);
+    const tabs=analytics.querySelector('.tabs');
+    const overview=tabs?.querySelector('[data-tab="analysis"]');
+    const history=tabs?.querySelector('[data-tab="history"]');
+    const range=tabs?.querySelector('[data-tab="range"]');
+    if(overview)overview.textContent='数据总览';if(history)history.textContent='手牌历史';if(range)range.textContent='范围实验室';
+    if(tabs&&!tabs.querySelector('[data-tab="profile"]')){
+      const profileButton=document.createElement('button');profileButton.dataset.tab='profile';profileButton.textContent='风格画像';tabs.insertBefore(profileButton,history);
+      const profile=document.createElement('div');profile.id='tab-profile';profile.className='tab-panel';profile.innerHTML='<div id="trainingPlan" class="training-plan"></div><div id="profileGrid" class="profile-grid"></div>';
+      analytics.appendChild(profile);
+      profileButton.onclick=()=>{for(const button of tabs.querySelectorAll('button'))button.classList.remove('active');for(const panel of analytics.querySelectorAll('.tab-panel'))panel.classList.remove('active');profileButton.classList.add('active');profile.classList.add('active')};
+    }
+  }
+
+  const profileText=()=>{
+    const s=G.session||freshStats(),hands=Math.max(1,s.hands||0),decisions=Math.max(1,s.decisions||0);
+    const vpip=(s.vpip||0)/hands,pfr=(s.pfr||0)/hands,af=((s.actions?.bet||0)+(s.actions?.raise||0)+(s.actions?.jam||0))/Math.max(1,s.actions?.call||0);
+    const biggest=s.errors?.overcall>=s.errors?.overbluff&&s.errors?.overcall>=s.errors?.overfold?'rivercatch':s.errors?.overbluff>=s.errors?.overfold?'overbet':'wetturn';
+    const focus=biggest==='rivercatch'?'河牌 bluff-catch':biggest==='overbet'?'河牌 overbet 防守':'湿润转牌大底池';
+    return{vpip,pfr,af,focus,biggest,confidence:Math.min(100,Math.round((s.decisions||0)/40*100))};
+  };
+  const renderProfile=()=>{
+    const grid=$('profileGrid'),plan=$('trainingPlan');if(!grid||!plan)return;
+    const profile=profileText(),style=profile.vpip>.34?'偏松进攻型':profile.vpip<.18?'偏紧选择型':profile.af>2.3?'高主动型':'平衡发展型';
+    grid.innerHTML='<article class="profile-card"><h3>当前风格</h3><strong>'+style+'</strong><p>样本可信度 '+profile.confidence+'%。VPIP '+Math.round(profile.vpip*100)+'%，PFR '+Math.round(profile.pfr*100)+'%。</p></article><article class="profile-card '+(profile.af<1?'warn':'')+'"><h3>主动性</h3><strong>'+profile.af.toFixed(2)+'</strong><p>攻击因子。低于 1 表示跟注相对偏多；请结合位置和底池类型判断。</p></article><article class="profile-card warn"><h3>下一训练重点</h3><strong>'+profile.focus+'</strong><p>系统会把该类难题加入自适应训练池，并在完成后更新你的漏洞统计。</p></article>';
+    plan.innerHTML='<div><b>针对性训练已准备</b><span>根据目前数据，建议先练：'+profile.focus+'。</span></div><button type="button" id="startFocusedTraining">开始本类训练</button>';
+    $('startFocusedTraining').onclick=()=>{$('scenario').value=profile.biggest;newHand();window.scrollTo({top:0,behavior:'smooth'})};
+  };
+  const oldDashboard=window.renderDashboard;
+  window.renderDashboard=function(){oldDashboard();renderProfile()};
+  const oldRenderActions=window.renderActions;
+  window.renderActions=function(){
+    document.querySelectorAll('.client-bet-rail').forEach(rail=>rail.remove());
+    return oldRenderActions.apply(this,arguments);
+  };
+  renderProfile();
 })();
 </script>
 </body>
