@@ -30,7 +30,8 @@
 <button id="updateLauncher" class="update-launcher">联网更新中心</button>
 <div id="onlineModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="onlineTitle"><div class="modal-card"><div class="modal-head"><h2 id="onlineTitle">联网更新中心</h2><button id="closeOnline" class="close-btn">关闭</button></div><div class="online-status"><i id="serverDot" class="status-dot"></i><span id="serverStatus">尚未连接本地更新服务</span></div><div class="online-grid"><div class="online-card"><h3>抓取公开源</h3><p>输入公开 JSON/文本地址。默认允许 GitHub、Zenodo、Hugging Face；服务端会限制 HTTPS、大小和请求超时。</p><div class="online-form"><input id="sourceUrl" placeholder="https://raw.githubusercontent.com/.../pack.json"><select id="sourceKind"><option value="scenario">场景包</option><option value="strategy">策略包</option><option value="analytics">分析规则包</option></select><button id="fetchSource" class="primary">抓取并缓存</button></div><div id="sourceList" class="source-list"></div></div><div class="online-card"><h3>创建训练机器人</h3><p>保存一个可复用的本地机器人参数；创建后会加入当前浏览器的机器人库。</p><div class="online-form"><input id="botNameInput" placeholder="机器人名称"><input id="botPressure" type="number" min="0" max="1" step=".05" value=".30" placeholder="压力系数"><input id="botCall" type="number" min="0" max="1" step=".05" value=".52" placeholder="跟注系数"><input id="botBluff" type="number" min="0" max="1" step=".05" value=".18" placeholder="诈唬系数"><button id="saveBot" class="primary">创建机器人</button></div></div><div class="online-card"><h3>创建训练模型</h3><p>模型目前作为分析/策略版本保存，后续可接入更复杂的评估器或外部求解器。</p><div class="online-form"><input id="modelNameInput" placeholder="模型名称"><input id="modelVersionInput" placeholder="版本，例如 0.1.0"><input id="modelNotesInput" placeholder="模型说明"><button id="saveModel" class="primary">创建模型</button></div></div><div class="online-card"><h3>已安装内容</h3><p>联网抓取后的内容不会立即覆盖基础策略；先以版本、来源和质量标签安装到本地库，再由训练器逐步采用。</p><div id="installedList" class="source-list"></div></div></div><div id="updateLog" class="update-log">等待操作…</div><div class="modal-note">“最优策略”只有在明确的游戏规则、范围、下注树和求解器/高质量策略数据下才成立。来自公开网页的内容会标记为未验证，不能直接视为 GTO 答案。</div></div></div>
 </main>
-<script src="./gto_engine.js?v=8"></script>
+<script src="./gto_engine.js"></script>
+<script src="./strategy_pack.js"></script>
 <script>
 const R='23456789TJQKA',S=['♠','♥','♦','♣'];
 const $=id=>document.getElementById(id),pct=x=>Math.round(x*100)+'%',money=x=>Math.max(0,Math.round(x));
@@ -100,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=9').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=10').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -347,6 +348,101 @@ window.parseImported=function(text){
     rail.querySelector('input').oninput=e=>{const v=values[Number(e.target.value)];if(h.street==='preflop')h.preflopSize=v;else h.betSize=v;window.renderActions()};
     row.insertAdjacentElement('afterend',rail);
   };
+  window.render();
+})();
+</script>
+<script>
+/* Phase 9: auditable solver-pack adoption. A heuristic may remain useful, but it
+   is never labelled solver/GTO unless a verified pack exactly covers the node. */
+(function(){
+  'use strict';
+  const style=document.createElement('style');
+  style.textContent='.strategy-evidence{display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid #567184;border-radius:99px;background:#0b1b28c9;color:#c1d4e4;font-size:10px;font-weight:800}.strategy-evidence:before{content:"";width:7px;height:7px;border-radius:50%;background:#8798a9}.strategy-evidence.verified{border-color:#64dcae;background:#10372bbf;color:#bff5df}.strategy-evidence.verified:before{background:#64dcae}.strategy-evidence.unverified{border-color:#d2a84b;background:#3a2d13c4;color:#ffdf9b}.strategy-evidence.unverified:before{background:#e8b84c}.evidence-note{margin:8px 0;padding:8px 9px;border-radius:7px;border-left:3px solid #71879a;background:#101c28;color:#c1d0dc;font-size:11px;line-height:1.55}.evidence-note.verified{border-left-color:#64dcae;background:#103126;color:#d4f6e4}.evidence-note.unverified{border-left-color:#e8b84c;background:#332713;color:#f4dca3}';
+  document.head.appendChild(style);
+  const head=document.querySelector('.table-head');
+  const badge=document.createElement('span');badge.id='strategyEvidenceBadge';badge.className='strategy-evidence';
+  if(head)head.appendChild(badge);
+  const actionKey=(r,a)=>r?.sizeKey&&r.sizeKey!=='raise'?r.sizeKey:a;
+  const allPacks=()=>[...(G.online?.packs||[])].filter(pack=>pack?.kind==='strategy'||pack?.format===STRATEGY_PACKS.FORMAT);
+  const evidenceFor=hand=>{
+    const context=STRATEGY_PACKS.contextFromHand(hand,{texture});
+    const match=STRATEGY_PACKS.matchBest(allPacks(),context);
+    if(!match)return{status:'approximate',label:'近似策略 · 未覆盖节点',detail:'当前节点没有可审计 solver 策略包覆盖；评分来自本地近似模型，不应视为 GTO。',context};
+    if(!match.trust.qualified)return{status:'unverified',label:'未验证包命中',detail:'已找到 '+match.pack.name+' '+match.pack.version+'，但完整性或 solver 审核未通过；不会改变评分。',match,context};
+    return{status:'verified',label:'Solver 已验证 · '+match.pack.name,detail:'命中 '+match.node.id+' · '+match.pack.source.solver+' · '+match.pack.version+' · '+match.match.coverage+' 覆盖。',match,context};
+  };
+  window.remoteAdvice=function(hand){const evidence=evidenceFor(hand);return evidence.status==='verified'?{name:evidence.match.pack.name,action:null,evidence}:null};
+  const legacyAssess=window.assess;
+  window.assess=function(hand,equity,action){
+    const result=legacyAssess(hand,equity,action),evidence=evidenceFor(hand);
+    result.strategyEvidence=evidence;
+    if(evidence.status!=='verified'){
+      result.remote=null;
+      result.error=(result.error||'')+' '+(evidence.status==='unverified'?'策略包存在但尚未审核，因此未用于评分。':'此节点未被可审计 solver 数据覆盖，以下为近似策略。');
+      return result;
+    }
+    const frequencies=evidence.match.frequencies,chosen=actionKey(result,action),available=Object.keys(frequencies),best=available.sort((left,right)=>frequencies[right]-frequencies[left])[0],probability=frequencies[chosen]??frequencies[action]??0,ev=evidence.match.node.strategy?.evBB||{},chosenEV=ev[chosen]??ev[action]??null,bestEV=Object.keys(ev).length?Math.max(...Object.values(ev).filter(value=>typeof value==='number')):null;
+    result.base=best;result.probability=probability;result.score=probability>=.15?Math.round(78+probability*22):Math.round(probability*100);result.strategy={actionKeys:available,...frequencies};result.tree={actionKeys:available,...frequencies,evByAction:ev};result.evByAction=Object.keys(ev).length?ev:null;result.chosenEV=chosenEV;result.bestEV=bestEV;result.evLoss=bestEV==null||chosenEV==null?null:Number((bestEV-chosenEV).toFixed(3));result.remote={name:evidence.match.pack.name,version:evidence.match.pack.version,solver:evidence.match.pack.source.solver,nodeId:evidence.match.node.id};result.error='已采用可审计 solver 策略包：'+evidence.match.pack.name+' '+evidence.match.pack.version+'。你的行动在该节点的频率为 '+Math.round(probability*100)+'%。';
+    return result;
+  };
+  const legacyRecord=window.record;
+  window.record=function(hand,action,result){
+    const value=legacyRecord(hand,action,result);const latest=hand.decisions?.[hand.decisions.length-1];
+    if(latest)latest.strategyEvidence=result.strategyEvidence||evidenceFor(hand);
+    return value;
+  };
+  const legacyShowNode=window.showNode;
+  window.showNode=function(hand,result,action){
+    legacyShowNode(hand,result,action);
+    const evidence=result.strategyEvidence||evidenceFor(hand),review=$('review');if(!review)return;
+    const note=document.createElement('div');note.className='evidence-note '+evidence.status;
+    note.innerHTML='<b>策略证据：</b>'+evidence.label+'<br><span>'+evidence.detail+'</span>';
+    review.appendChild(note);
+  };
+  const legacyRender=window.render;
+  window.render=function(){
+    legacyRender();
+    const evidence=G.hand?evidenceFor(G.hand):null;if(!evidence||!badge)return;
+    badge.className='strategy-evidence '+evidence.status;badge.textContent=evidence.label;
+  };
+  const legacyApplyPack=window.applyPack;
+  window.applyPack=function(pack){
+    if(pack?.format===STRATEGY_PACKS.FORMAT){
+      const report=STRATEGY_PACKS.validate(pack);
+      pack.clientValidation=report;
+      if(!report.valid){onlineLog('策略包格式不合格：'+report.errors.join('；'));return;}
+      pack.kind='strategy';pack.items=pack.nodes;pack.quality=pack.verification?.qualification||'unverified';
+    }
+    return legacyApplyPack(pack);
+  };
+  window.render();
+})();
+</script>
+<script>
+/* Phase 9b: present the evidence trail consistently in the table, review and catalog. */
+(function(){
+  'use strict';
+  const inheritedEvidence=window.evidenceFor;
+  const qualityText=pack=>{
+    const q=STRATEGY_PACKS.qualification(pack);
+    return q.qualified?'solver 已审核 + 哈希已验证':q.integrity?'哈希已验证，尚未 solver 审核':'未验证；不能用于 solver 评分';
+  };
+  const oldCatalog=window.renderOnlineCatalog;
+  window.renderOnlineCatalog=function(){
+    oldCatalog();
+    const list=$('installedList');if(!list)return;
+    const rows=(G.online?.packs||[]).filter(pack=>pack?.format===STRATEGY_PACKS.FORMAT).map(pack=>'<div class="source-row"><b>策略证据 · '+pack.name+'</b><br><span>版本 '+pack.version+' · '+qualityText(pack)+'<br>'+String(pack.source?.solver||'未声明求解器')+' · '+String(pack.source?.url||'未声明来源')+'</span></div>');
+    if(rows.length)list.insertAdjacentHTML('afterbegin',rows.join(''));
+  };
+  const oldFinish=window.finish;
+  window.finish=function(reason){
+    oldFinish(reason);
+    const decision=G.hand?.decisions?.at(-1),evidence=decision?.strategyEvidence;
+    if(!evidence)return;
+    const review=$('review');if(review&&!review.querySelector('.phase9-final-evidence'))review.insertAdjacentHTML('beforeend','<div class="evidence-note '+evidence.status+' phase9-final-evidence"><b>本手策略证据：</b>'+evidence.label+'<br><span>'+evidence.detail+'</span></div>');
+  };
+  const previousRender=window.render;
+  window.render=function(){previousRender();window.renderOnlineCatalog()};
   window.render();
 })();
 </script>
