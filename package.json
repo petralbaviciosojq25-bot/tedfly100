@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node poker_trainer_server.mjs",
-    "test:phase6": "node phase6_regression.mjs"
+    "test:phase6": "node phase6_regression.mjs",
+    "test:phase7": "node phase7_regression.mjs"
   },
   "engines": {
     "node": ">=18"

@@ -129,6 +129,21 @@
     }
     return range;
   }
+  function updateRangeByAction(range,{action='fold',sizeKey='',street='preflop',pos='BTN',facing=false}={}){
+    const next=(range||[]).map(item=>{
+      let likelihood=item.strategy?.[action]??0;
+      if(street==='preflop'){
+        const tree=preflopSizeTree({hand:item.hand,pos,facing});
+        const key=sizeKey||(action==='raise'?(facing?'raise3':'open25'):action);
+        if(tree[key]!=null)likelihood=tree[key];
+      }else if(sizeKey&&['raise','bet'].includes(action)){
+        const score=rankScore(item.hand),large=/125|jam|4/.test(sizeKey),polar=score>.72||score<.28;
+        likelihood*=large?(polar?1.35:.72):(polar?.88:1.08);
+      }
+      return{...item,weight:item.weight*Math.max(.0005,likelihood)};
+    });
+    const total=next.reduce((sum,item)=>sum+item.weight,0)||1;next.forEach(item=>item.weight/=total);return next;
+  }
   function updateRange(range,action){
     const next=(range||[]).map(item=>({...item,weight:item.weight*Math.max(.001,item.strategy?.[action]??0)}));
     const total=next.reduce((sum,item)=>sum+item.weight,0)||1;
@@ -233,6 +248,7 @@
     weightedChoiceActions,
     makeRange,
     updateRange,
+    updateRangeByAction,
     topRange,
     estimateEV,
     postflopEV,

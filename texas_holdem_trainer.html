@@ -30,7 +30,7 @@
 <button id="updateLauncher" class="update-launcher">联网更新中心</button>
 <div id="onlineModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="onlineTitle"><div class="modal-card"><div class="modal-head"><h2 id="onlineTitle">联网更新中心</h2><button id="closeOnline" class="close-btn">关闭</button></div><div class="online-status"><i id="serverDot" class="status-dot"></i><span id="serverStatus">尚未连接本地更新服务</span></div><div class="online-grid"><div class="online-card"><h3>抓取公开源</h3><p>输入公开 JSON/文本地址。默认允许 GitHub、Zenodo、Hugging Face；服务端会限制 HTTPS、大小和请求超时。</p><div class="online-form"><input id="sourceUrl" placeholder="https://raw.githubusercontent.com/.../pack.json"><select id="sourceKind"><option value="scenario">场景包</option><option value="strategy">策略包</option><option value="analytics">分析规则包</option></select><button id="fetchSource" class="primary">抓取并缓存</button></div><div id="sourceList" class="source-list"></div></div><div class="online-card"><h3>创建训练机器人</h3><p>保存一个可复用的本地机器人参数；创建后会加入当前浏览器的机器人库。</p><div class="online-form"><input id="botNameInput" placeholder="机器人名称"><input id="botPressure" type="number" min="0" max="1" step=".05" value=".30" placeholder="压力系数"><input id="botCall" type="number" min="0" max="1" step=".05" value=".52" placeholder="跟注系数"><input id="botBluff" type="number" min="0" max="1" step=".05" value=".18" placeholder="诈唬系数"><button id="saveBot" class="primary">创建机器人</button></div></div><div class="online-card"><h3>创建训练模型</h3><p>模型目前作为分析/策略版本保存，后续可接入更复杂的评估器或外部求解器。</p><div class="online-form"><input id="modelNameInput" placeholder="模型名称"><input id="modelVersionInput" placeholder="版本，例如 0.1.0"><input id="modelNotesInput" placeholder="模型说明"><button id="saveModel" class="primary">创建模型</button></div></div><div class="online-card"><h3>已安装内容</h3><p>联网抓取后的内容不会立即覆盖基础策略；先以版本、来源和质量标签安装到本地库，再由训练器逐步采用。</p><div id="installedList" class="source-list"></div></div></div><div id="updateLog" class="update-log">等待操作…</div><div class="modal-note">“最优策略”只有在明确的游戏规则、范围、下注树和求解器/高质量策略数据下才成立。来自公开网页的内容会标记为未验证，不能直接视为 GTO 答案。</div></div></div>
 </main>
-<script src="./gto_engine.js?v=7"></script>
+<script src="./gto_engine.js?v=8"></script>
 <script>
 const R='23456789TJQKA',S=['♠','♥','♦','♣'];
 const $=id=>document.getElementById(id),pct=x=>Math.round(x*100)+'%',money=x=>Math.max(0,Math.round(x));
@@ -100,7 +100,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=7').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=8').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -153,7 +153,7 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventLis
     $('sizeRow').innerHTML=sizes.map(x=>'<button class="'+(h.street==='preflop'?String(h.preflopSize||2.5)===x[0]:String(h.betSize)===x[0]?'active':'')+'" data-size="'+x[0]+'">'+x[1]+'</button>').join('');
     $('sizeRow').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(h.street==='preflop')h.preflopSize=Number(b.dataset.size);else h.betSize=b.dataset.size==='all'?'all':Number(b.dataset.size);window.renderActions()});
     let choices=[];
-    if(h.toCall>0)choices=[['fold','弃牌','fold'],['call','跟注 '+money(h.toCall),'call'],['raise','再加注到 '+(h.preflopSize||2.5)+'x','raise'],['jam','全押','jam']];
+    if(h.toCall>0)choices=[['fold','弃牌','fold'],['call','跟注 '+money(h.toCall),'call'],['raise',h.street==='preflop'?'再加注到 '+(h.preflopSize||2.5)+'x':'加注','raise'],['jam','全押','jam']];
     else if(h.street==='preflop')choices=[['fold','弃牌','fold'],['raise','开到 '+(h.preflopSize||2.5)+'BB','raise'],['jam','全押','jam']];
     else choices=[['check','过牌','check'],['bet','下注 '+(h.betSize==='all'?'全押':Math.round(h.pot*Number(h.betSize||.5))),'bet'],['jam','全押','jam']];
     $('actions').innerHTML=choices.map(x=>'<button class="'+x[2]+'" data-action="'+x[0]+'">'+x[1]+'</button>').join('');
@@ -200,6 +200,79 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventLis
   $('tableMode').onchange=window.newHand;$('scenario').onchange=window.newHand;
   const footer=document.querySelector('.footer');if(footer)footer.textContent='当前为第六阶段：固定种子可重现牌局，翻前支持 2.0x/2.2x/2.5x/3.0x/4.0x 尺寸树；每个动作记录街道、投入、底池、筹码和牌面。当前模型仍是可解释的近似训练模型，不等同于完整 GTO 求解器。';
   window.newHand();
+})();
+window.parseImported=function(text){
+  const chunks=String(text||'').split('\n\n').filter(x=>x.trim());
+  const numberList=s=>{const out=[];let cur='';for(const ch of String(s)){if((ch>='0'&&ch<='9')||ch==='.'){cur+=ch}else if(cur){out.push(Number(cur));cur=''}}if(cur)out.push(Number(cur));return out};
+  return chunks.map((raw,i)=>{
+    const dealt=raw.indexOf('Dealt to '),open=raw.indexOf('[',dealt),close=raw.indexOf(']',open),cards=dealt>=0&&open>dealt&&close>open?raw.slice(open+1,close).trim().split(/\s+/):[],board=[],actions=[];let street='preflop';
+    for(const line of raw.split('\n')){
+      const upper=line.toUpperCase(),isFlop=upper.includes('*** FLOP ***'),isTurn=upper.includes('*** TURN ***'),isRiver=upper.includes('*** RIVER ***');
+      if(isFlop||isTurn||isRiver){street=isFlop?'flop':isTurn?'turn':'river';const a=line.indexOf('['),b=line.indexOf(']',a);if(a>=0&&b>a)board.push(...line.slice(a+1,b).trim().split(/\s+/));continue}
+      const colon=line.indexOf(':');if(colon<1)continue;const actor=line.slice(0,colon).trim(),rest=line.slice(colon+1).trim(),lower=rest.toLowerCase();let action=null;
+      if(lower.startsWith('folds'))action='fold';else if(lower.startsWith('checks'))action='check';else if(lower.startsWith('calls'))action='call';else if(lower.startsWith('all-in'))action='jam';else if(lower.startsWith('bets'))action='bet';else if(lower.startsWith('raises'))action='raise';if(!action)continue;
+      const nums=numberList(rest);actions.push({street,actor,action,amount:nums.length?nums[nums.length-1]:0});
+    }
+    return{id:'import-'+Date.now()+'-'+i,hero:cards,board:board.slice(-5),bot:'导入历史',botName:'外部手牌',score:null,result:'已导入',decisions:actions,actionLog:actions,imported:true};
+  });
+};
+</script>
+<script>
+(function(){
+  'use strict';
+  const tableStyle=document.createElement('style');
+  tableStyle.textContent='.table{min-height:620px;padding:18px 24px;border-radius:38%/23%;background:radial-gradient(ellipse at 50% 48%,#1b7162 0,#125047 48%,#092d2a 100%)}.table:before{inset:18px;border-radius:35%/20%}.seats{position:absolute;inset:0;display:block;margin:0}.seat{position:absolute;width:154px;min-height:58px;transform:translate(-50%,-50%);z-index:3;text-align:center}.seat b{white-space:nowrap}.seat-utg{left:22%;top:27%}.seat-hj{left:50%;top:13%}.seat-co{left:78%;top:27%}.seat-btn{left:84%;top:68%}.seat-sb{left:63%;top:88%}.seat-bb{left:37%;top:88%}.seat-btn:after,.seat-bb:after,.seat-sb:after{position:absolute;top:-10px;right:-8px;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;font-size:10px;font-weight:900}.seat-btn:after{content:"D";background:#f1f5fa;color:#152032;border:2px solid #d4a93d}.seat-sb:after{content:"SB";background:#2b415d;color:#d9eaff;border:1px solid #78b8ff}.seat-bb:after{content:"BB";background:#2b415d;color:#d9eaff;border:1px solid #78b8ff}.board-block{position:absolute;left:50%;top:37%;width:70%;transform:translateX(-50%);text-align:center}.hero-block{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);text-align:center}.hero-block .cards{justify-content:center}.table-meta{position:absolute;left:50%;top:57%;transform:translate(-50%,-50%);justify-content:center;width:70%;padding:8px 12px;border:1px solid #b3e9d533;border-radius:99px;background:#082a2770}.table-actions{position:relative}.table-head{position:relative;z-index:5}@media(max-width:600px){.table{min-height:650px;padding:15px 8px;border-radius:32%/18%}.seat{width:108px;padding:8px 5px;font-size:10px}.seat b{font-size:11px}.seat-utg{left:18%;top:25%}.seat-hj{left:50%;top:11%}.seat-co{left:82%;top:25%}.seat-btn{left:87%;top:69%}.seat-sb{left:65%;top:89%}.seat-bb{left:35%;top:89%}.board-block{top:37%;width:86%}.table-meta{top:57%;width:92%;gap:8px;font-size:11px}.table-meta strong{font-size:14px}.card-face{width:48px;height:66px;font-size:18px}}';
+  document.head.appendChild(tableStyle);
+  window.renderSeats=function(){
+    const h=G.hand;
+    $('seats').innerHTML=h.seats.map(s=>{const name=s.status==='hero'?'你':h.showVillain?(BOT[s.bot]?.name||'对手'):'对手',meta=s.status==='hero'?money(h.heroStack)+'筹码':s.status==='folded'?'已弃牌':'未知类型';return'<div class="seat seat-'+s.pos.toLowerCase()+' '+(s.status==='hero'?'hero ':'')+(s.status==='folded'?'folded ':'')+(h.showVillain&&s.status!=='hero'?'reveal ':'')+'"><b>'+s.pos+' · '+name+'</b><span class="seat-meta">'+meta+'</span></div>'}).join('');
+  };
+  const oldRender=window.render;
+  window.render=function(){oldRender();};
+  window.render();
+})();
+</script>
+<script>
+(function(){
+  'use strict';
+  const legacyRecord=window.record;
+  const legacyBotDecision=window.botDecision;
+  const updateRangeForAction=typeof GTO_ENGINE.updateRangeByAction==='function'?GTO_ENGINE.updateRangeByAction:(range,{action='fold'}={})=>GTO_ENGINE.updateRange(range,action);
+  window.record=function(h,a,r){h.lastActionSize=r.sizeKey||((h.street==='preflop'&&a==='raise')?(h.toCall>0?'raise3':'open25'):a);return legacyRecord(h,a,r)};
+  window.botDecision=function(h,context){const d=legacyBotDecision(h,context);h.lastBotActionSize=h.botActionKey||h.botBetSize||d;return d};
+  window.updateObservedRange=function(h,actor,a,sizeKey){
+    const key=actor==='hero'?'heroRange':'villainRange',actualSize=sizeKey||(actor==='hero'?h.lastActionSize:h.lastBotActionSize)||a;
+     if(h[key])h[key]=updateRangeForAction(h[key],{action:rangeAction(a),sizeKey:actualSize,street:h.street,pos:actor==='hero'?h.pos:h.villainPos,facing:h.toCall>0});
+    h.rangeHistory=h.rangeHistory||[];h.rangeHistory.push({street:h.street,actor,action:a,sizeKey:actualSize,top:GTO_ENGINE.topRange(h[key],3).map(x=>x.hand)});
+  };
+  window.parseImported=window.parseImported||function(text){/*
+    const chunks=text.split(/(?=PokerStars Hand #|Poker Hand #|\*{2}Hand #)/).filter(x=>x.trim());if(!chunks.length)return[];
+    return chunks.map((raw,i)=>{
+      const m=raw.match(/Dealt to ([^\s]+)\s*\[([^\]]+)\]/i),cards=m?m[2].trim().split(/\s+/):[],board=[],actions=[];let street='preflop';
+      for(const line of raw.split(/\r?\n/)){
+        const marker=line.match(/\*\*\* (FLOP|TURN|RIVER) \*\*\* \[([^\]]+)\]/i);
+        if(marker){street=marker[1].toLowerCase();board.push(...marker[2].trim().split(/\s+/));continue}
+        const a=line.match(/^([^:]+):\s*(folds|checks|calls|bets|raises|all-in)(.*)$/i);if(!a)continue;
+        const verb=a[2].toLowerCase(),action=verb==='folds'?'fold':verb==='checks'?'check':verb==='calls'?'call':verb==='all-in'?'jam':verb==='bets'?'bet':'raise',nums=[...a[3].matchAll(/(?:[$€£])?([0-9]+(?:\\.[0-9]+)?)/g)].map(x=>Number(x[1]));actions.push({street,actor:a[1].trim(),action,amount:nums.length?nums[nums.length-1]:0});
+      }
+      return{id:'import-'+Date.now()+'-'+i,hero:cards,board:board.slice(-5),bot:'导入历史',botName:'外部手牌',score:null,result:'已导入',decisions:actions,actionLog:actions,imported:true};
+    });
+  */};
+  const parseHandHistory=text=>{
+    const chunks=String(text||'').split('\n\n').filter(x=>x.trim()),numbers=s=>{const out=[];let cur='';for(const ch of String(s)){if((ch>='0'&&ch<='9')||ch==='.'){cur+=ch}else if(cur){out.push(Number(cur));cur=''}}if(cur)out.push(Number(cur));return out};
+    return chunks.map((raw,i)=>{
+      const dealt=raw.indexOf('Dealt to '),open=raw.indexOf('[',dealt),close=raw.indexOf(']',open),cards=dealt>=0&&open>dealt&&close>open?raw.slice(open+1,close).trim().split(/\s+/):[],board=[],decisions=[];let street='preflop';
+      for(const line of raw.split('\n')){
+        const upper=line.toUpperCase(),flop=upper.includes('*** FLOP ***'),turn=upper.includes('*** TURN ***'),river=upper.includes('*** RIVER ***');
+        if(flop||turn||river){street=flop?'flop':turn?'turn':'river';const a=line.indexOf('['),b=line.indexOf(']',a);if(a>=0&&b>a)board.push(...line.slice(a+1,b).trim().split(/\s+/));continue}
+        const colon=line.indexOf(':');if(colon<1)continue;const actor=line.slice(0,colon).trim(),rest=line.slice(colon+1).trim(),lower=rest.toLowerCase();let action=null;
+        if(lower.startsWith('folds'))action='fold';else if(lower.startsWith('checks'))action='check';else if(lower.startsWith('calls'))action='call';else if(lower.startsWith('all-in'))action='jam';else if(lower.startsWith('bets'))action='bet';else if(lower.startsWith('raises'))action='raise';if(!action)continue;
+        const nums=numbers(rest);decisions.push({street,actor,action,amount:nums.length?nums[nums.length-1]:0});
+      }
+      return{id:'import-'+Date.now()+'-'+i,hero:cards,board:board.slice(-5),bot:'导入历史',botName:'外部手牌',score:null,result:'已导入',decisions,actionLog:decisions,imported:true};
+    });
+  };
+  const hh=$('hhInput');if(hh)hh.onchange=e=>{const f=e.target.files?.[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{const rows=parseHandHistory(String(reader.result||''));G.session.history=[...rows,...G.session.history].slice(0,100);G.session.imported=(G.session.imported||0)+rows.length;localStorage.setItem('pokerTrainerStats',JSON.stringify(G.session));renderDashboard();alert('已导入 '+rows.length+' 手历史，其中 '+rows.filter(x=>x.hero.length===2).length+' 手识别到起手牌。')};reader.readAsText(f)};
 })();
 </script>
 </body>
