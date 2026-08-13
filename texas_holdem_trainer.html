@@ -544,5 +544,83 @@ window.parseImported=function(text){
   renderCoverage();
 })();
 </script>
+<script>
+/* Phase 11: collision-free table zones and clearer information hierarchy. */
+(function(){
+  'use strict';
+  const style=document.createElement('style');
+  style.textContent=`
+    /* The felt has four non-overlapping zones: players, board, hero, actions. */
+    .table{min-height:710px}
+    .seat.hero{display:none!important}
+    .seat-sb{left:77%;top:71%}.seat-bb{left:23%;top:71%}
+    .hero-block{bottom:195px;z-index:7}
+    .table-actions{bottom:16px;z-index:10}
+    .table-actions:before{content:'行动区';display:block;margin:0 0 6px;color:#8fa5b8;font-size:10px;font-weight:800;letter-spacing:1.1px;text-align:center}
+    .table-meta{top:56%}
+    .decision-panel,.analytics-panel{position:relative}
+    .section-divider{display:flex;align-items:center;gap:8px;margin:13px 0 8px;color:#91a9bd;font-size:10px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase}
+    .section-divider:after{content:'';height:1px;flex:1;background:#2b3a4a}
+    .decision-panel .section-divider:first-of-type{margin-top:0}
+    .decision-panel .summary-grid,.decision-panel .stats{padding:9px;border:1px solid #263747;border-radius:9px;background:#0a1017}
+    .decision-panel .review{border-left:3px solid #4e9edc;background:#0a1119}
+    .analytics-panel>.tabs{padding-bottom:9px;border-bottom:1px solid #293746}
+    .analytics-panel .tab-panel{padding-top:2px}
+    .hero-label .hero-position{display:inline-block;margin-left:6px;padding:2px 5px;border:1px solid #7fe1bd66;border-radius:4px;background:#08362f99;color:#ccf6e6;font-size:9px;letter-spacing:.4px;vertical-align:middle}
+    @media(max-width:1120px){
+      .table{min-height:700px}.seat-sb{left:78%;top:71%}.seat-bb{left:22%;top:71%}
+    }
+    @media(max-width:860px){
+      .layout{gap:10px}.layout>aside{display:grid;grid-template-columns:1fr;gap:10px}
+      .layout>aside .panel{padding:12px;border-radius:10px}
+      .table{min-height:720px}
+      .seat.hero{display:none!important}
+      .seat{width:102px}
+      .seat-sb{left:84%;top:68%}.seat-bb{left:16%;top:68%}
+      .seat-btn{left:86%;top:59%}
+      .hero-block{bottom:190px}
+      .table-meta{top:50%;width:90%}
+      .table-actions{right:9px;bottom:9px;left:9px}
+      .table-actions:before{margin-bottom:5px}
+      .decision-panel .summary-grid{grid-template-columns:1fr 1fr}
+      .decision-panel .stats{grid-template-columns:repeat(4,1fr)}
+      .review{max-height:none;overflow:visible}
+    }
+    @media(max-width:420px){
+      .table{min-height:710px}
+      .seat{width:88px}.seat-avatar{display:none}
+      .seat-sb{left:85%;top:68%}.seat-bb{left:15%;top:68%}
+      .hero-block{bottom:189px}
+      .hero-block .card-face{width:54px;height:75px;font-size:22px}
+      .table-meta{top:49%;width:91%;gap:5px}
+      .table-meta .muted{display:none}
+      .decision-panel .stats{grid-template-columns:1fr 1fr}
+    }
+  `;
+  document.head.appendChild(style);
+
+  const aside=document.querySelector('.layout>aside');
+  const panels=aside?aside.querySelectorAll(':scope>section.panel'):[];
+  if(panels[0]){
+    const panel=panels[0];panel.classList.add('decision-panel');
+    const addDivider=(target,label)=>{const divider=document.createElement('div');divider.className='section-divider';divider.textContent=label;target.before(divider)};
+    if(!panel.querySelector('.section-divider')){
+      addDivider(panel.querySelector('.summary-grid'),'牌局信息');
+      addDivider(panel.querySelector('.stats'),'决策数据');
+      addDivider(panel.querySelector('#review'),'即时复盘');
+    }
+  }
+  if(panels[1])panels[1].classList.add('analytics-panel');
+
+  const heroLabel=document.querySelector('.hero-label');
+  const updateHeroPosition=()=>{
+    if(!heroLabel||!G.hand)return;
+    heroLabel.innerHTML='你的手牌 <span class="hero-position">'+G.hand.pos+' · 你</span>';
+  };
+  const oldRender=window.render;
+  window.render=function(){oldRender();updateHeroPosition()};
+  updateHeroPosition();
+})();
+</script>
 </body>
 </html>
