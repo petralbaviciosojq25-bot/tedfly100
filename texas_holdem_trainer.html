@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=13').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=14').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -779,6 +779,20 @@ window.parseImported=function(text){
       profileButton.onclick=()=>{tabs.querySelectorAll('button').forEach(button=>button.classList.remove('active'));analytics.querySelectorAll('.tab-panel').forEach(panel=>panel.classList.remove('active'));profileButton.classList.add('active');profile.classList.add('active')};
     }
   }
+
+  const correctedFinish=window.finish;
+  window.finish=function(reason){
+    const hand=G.hand;
+    const historyBefore=[...(G.session?.history||[])];
+    const raisesPreflop=Boolean(hand?.decisions?.[0]?.street==='preflop'&&['raise','bet','jam'].includes(hand.decisions[0].action));
+    const pfrBefore=G.session?.pfr||0;
+    correctedFinish(reason);
+    const newest=G.session?.history?.[0];
+    if(newest)G.session.history=[newest,...historyBefore].slice(0,200);
+    if(raisesPreflop)G.session.pfr=pfrBefore+1;
+    try{localStorage.setItem('pokerTrainerStats',JSON.stringify(G.session))}catch(e){}
+    window.renderDashboard?.();
+  };
 
   const renderHero=()=>{const label=document.querySelector('.hero-label');if(label&&G.hand)label.innerHTML='你的手牌 <span class="hero-position">'+G.hand.pos+' · 你</span>'};
   const profileSummary=()=>{
