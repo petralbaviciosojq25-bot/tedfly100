@@ -1,4 +1,4 @@
-const CACHE='poker-trainer-v2';
+const CACHE='poker-trainer-v3';
 const CORE=['./','./index.html','./texas_holdem_trainer.html','./gto_engine.js','./manifest.webmanifest','./icon.svg'];
 
 self.addEventListener('install',event=>{

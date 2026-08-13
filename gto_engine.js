@@ -28,6 +28,10 @@
     for(const a of ACTIONS)out[a]=out[a]/total;
     return out;
   }
+  function normalizeActions(raw,keys){
+    const out={};for(const key of keys)out[key]=Math.max(0,Number(raw?.[key]||0));
+    const total=keys.reduce((sum,key)=>sum+out[key],0)||1;for(const key of keys)out[key]=out[key]/total;return out;
+  }
   function weightedChoice(strategy,rng=Math.random){
     const s=normalize(strategy),x=rng();let acc=0;
     for(const a of ACTIONS){acc+=s[a];if(x<=acc)return a}
@@ -107,21 +111,27 @@
   function postflopStrategy({equity=0.5,pot=0,toCall=0,street='flop',pos='BTN',madeStrength=0,draw=false,betFraction=.5,stack=100,bot='solver'}={}){
     const e=clamp(Number(equity)||0,0,1),p=Math.max(0,Number(pot)||0),call=Math.max(0,Number(toCall)||0),odds=call?(call/(p+call)):.0,facing=call>0;
     let base;
+    let actionKeys;
     if(facing){
+      actionKeys=['fold','call','raise'];
       if(e<odds-.10)base={fold:.88,call:.04,raise:draw?.08:.02};
       else if(e<odds+.04)base={fold:.28,call:.60,raise:draw?.12:.04};
       else if(e>=.70||madeStrength>=2)base={fold:.02,call:.28,raise:.70};
       else if(draw)base={fold:.08,call:.62,raise:.30};
       else base={fold:.10,call:.76,raise:.14};
-    }else if(e>=.70||madeStrength>=2)base={fold:.01,call:.04,raise:.95};
-    else if(e>=.50||draw)base={fold:.10,call:.34,raise:.56};
-    else if(e>=.35)base={fold:.44,call:.38,raise:.18};
-    else base={fold:.70,call:.25,raise:.05};
-    if(pos==='BTN'||pos==='CO')base={...base,raise:base.raise+.04,call:base.call-.02};
-    if(street==='river'&&draw&&madeStrength<2)base={...base,raise:base.raise+.05,call:base.call-.04};
-    const strategy=styleAdjust(base,bot),evByAction=postflopEV({equity:e,pot:p,toCall:call,betFraction,stack});
+    }else{
+      actionKeys=['check','bet'];
+      if(e>=.70||madeStrength>=2)base={check:.08,bet:.92};
+      else if(e>=.50||draw)base={check:.32,bet:.68};
+      else if(e>=.35)base={check:.62,bet:.38};
+      else base={check:.82,bet:.18};
+      if(pos==='BTN'||pos==='CO')base={...base,bet:base.bet+.06,check:base.check-.06};
+      if(street==='river'&&draw&&madeStrength<2)base={...base,bet:base.bet+.08,check:base.check-.08};
+    }
+    const strategy=actionKeys.includes('fold')?styleAdjust(base,bot):normalizeActions(base,actionKeys),evByAction=postflopEV({equity:e,pot:p,toCall:call,betFraction,stack});
+    if(!facing){evByAction.check=0;evByAction.bet=evByAction.raise;delete evByAction.raise;delete evByAction.call;delete evByAction.fold}
     const bestEV=Math.max(...Object.values(evByAction));
-    return{...strategy,street,position:pos,facing,odds,equity:e,evByAction,bestEV,model:'6max-100bb-sr-postflop-v1'};
+    return{...strategy,actionKeys,street,position:pos,facing,odds,equity:e,evByAction,bestEV,model:'6max-100bb-sr-postflop-v2'};
   }
 
   window.GTO_ENGINE={
