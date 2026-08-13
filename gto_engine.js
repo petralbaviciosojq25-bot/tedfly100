@@ -18,6 +18,15 @@
     {key:'raise125',fraction:1.25,label:'加注 125%'},
     {key:'jam',fraction:1.25,label:'全押',allIn:true}
   ];
+  const PREFLOP_SIZES=[
+    {key:'open20',multiple:2.0,label:'开到 2.0BB'},
+    {key:'open22',multiple:2.2,label:'开到 2.2BB'},
+    {key:'open25',multiple:2.5,label:'开到 2.5BB'},
+    {key:'open30',multiple:3.0,label:'开到 3.0BB'},
+    {key:'open40',multiple:4.0,label:'开到 4.0BB'},
+    {key:'raise3',multiple:3.0,label:'再加注 3.0x'},
+    {key:'raise4',multiple:4.0,label:'再加注 4.0x'}
+  ];
   const OPEN_LIMIT={UTG:.70,HJ:.66,CO:.60,BTN:.54,SB:.56,BB:.50};
   const DEFEND_LIMIT={UTG:.72,HJ:.68,CO:.64,BTN:.58,SB:.58,BB:.40};
 
@@ -92,9 +101,20 @@
     }
     return styleAdjust(result,bot);
   }
+  function preflopSizeTree({hand,pos,facing=false,bot='solver'}={}){
+    const code=typeof hand==='string'?hand:handCode(hand),score=rankScore(code),p=POSITIONS.includes(pos)?pos:'BTN';
+    if(!facing){
+      const raw=score>=(OPEN_LIMIT[p]||.58)+.10?{open20:.06,open22:.16,open25:.42,open30:.25,open40:.11}:score>=(OPEN_LIMIT[p]||.58)?{open20:.04,open22:.14,open25:.50,open30:.25,open40:.07}:score>=(OPEN_LIMIT[p]||.58)-.06?{open20:.02,open22:.10,open25:.56,open30:.25,open40:.07}:{open20:0,open22:.04,open25:.58,open30:.28,open40:.10};
+      const strategy=normalizeActions(raw,['open20','open22','open25','open30','open40']);
+      return{actionKeys:Object.keys(strategy),...strategy,sizes:PREFLOP_SIZES.filter(x=>x.key.startsWith('open')),facing:false,position:p,hand:code,model:'6max-100bb-sr-preflop-size-v1'};
+    }
+    const raw=score>.84?{fold:.02,call:.18,raise3:.30,raise4:.35,jam:.15}:score>=(DEFEND_LIMIT[p]||.45)?{fold:.18,call:.42,raise3:.22,raise4:.14,jam:.04}:score>=(DEFEND_LIMIT[p]||.45)-.08?{fold:.58,call:.24,raise3:.11,raise4:.05,jam:.02}:{fold:.86,call:.08,raise3:.04,raise4:.015,jam:.005};
+    const strategy=normalizeActions(raw,['fold','call','raise3','raise4','jam']);
+    return{actionKeys:Object.keys(strategy),...strategy,sizes:PREFLOP_SIZES.filter(x=>!x.key.startsWith('open')),facing:true,position:p,hand:code,model:'6max-100bb-sr-preflop-defense-size-v1'};
+  }
   function strategyFor(opts){
     const s=baseStrategy(opts||{});
-    return {...s,hand:typeof opts?.hand==='string'?opts.hand:handCode(opts?.hand),position:opts?.pos||'BTN',facing:!!opts?.facing,model:'6max-100bb-sr-v1'};
+    return {...s,hand:typeof opts?.hand==='string'?opts.hand:handCode(opts?.hand),position:opts?.pos||'BTN',facing:!!opts?.facing,sizeTree:preflopSizeTree(opts||{}),model:'6max-100bb-sr-v2'};
   }
   function makeRange(pos,facing=false){
     const range=[];
@@ -221,6 +241,8 @@
     postflopStrategy,
     postflopSizes:POSTFLOP_SIZES,
     postflopRaises:POSTFLOP_RAISES,
+    preflopSizes:PREFLOP_SIZES,
+    preflopSizeTree,
     sizeKey,
     raiseSizeKey
   };

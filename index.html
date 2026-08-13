@@ -30,7 +30,7 @@
 <button id="updateLauncher" class="update-launcher">联网更新中心</button>
 <div id="onlineModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="onlineTitle"><div class="modal-card"><div class="modal-head"><h2 id="onlineTitle">联网更新中心</h2><button id="closeOnline" class="close-btn">关闭</button></div><div class="online-status"><i id="serverDot" class="status-dot"></i><span id="serverStatus">尚未连接本地更新服务</span></div><div class="online-grid"><div class="online-card"><h3>抓取公开源</h3><p>输入公开 JSON/文本地址。默认允许 GitHub、Zenodo、Hugging Face；服务端会限制 HTTPS、大小和请求超时。</p><div class="online-form"><input id="sourceUrl" placeholder="https://raw.githubusercontent.com/.../pack.json"><select id="sourceKind"><option value="scenario">场景包</option><option value="strategy">策略包</option><option value="analytics">分析规则包</option></select><button id="fetchSource" class="primary">抓取并缓存</button></div><div id="sourceList" class="source-list"></div></div><div class="online-card"><h3>创建训练机器人</h3><p>保存一个可复用的本地机器人参数；创建后会加入当前浏览器的机器人库。</p><div class="online-form"><input id="botNameInput" placeholder="机器人名称"><input id="botPressure" type="number" min="0" max="1" step=".05" value=".30" placeholder="压力系数"><input id="botCall" type="number" min="0" max="1" step=".05" value=".52" placeholder="跟注系数"><input id="botBluff" type="number" min="0" max="1" step=".05" value=".18" placeholder="诈唬系数"><button id="saveBot" class="primary">创建机器人</button></div></div><div class="online-card"><h3>创建训练模型</h3><p>模型目前作为分析/策略版本保存，后续可接入更复杂的评估器或外部求解器。</p><div class="online-form"><input id="modelNameInput" placeholder="模型名称"><input id="modelVersionInput" placeholder="版本，例如 0.1.0"><input id="modelNotesInput" placeholder="模型说明"><button id="saveModel" class="primary">创建模型</button></div></div><div class="online-card"><h3>已安装内容</h3><p>联网抓取后的内容不会立即覆盖基础策略；先以版本、来源和质量标签安装到本地库，再由训练器逐步采用。</p><div id="installedList" class="source-list"></div></div></div><div id="updateLog" class="update-log">等待操作…</div><div class="modal-note">“最优策略”只有在明确的游戏规则、范围、下注树和求解器/高质量策略数据下才成立。来自公开网页的内容会标记为未验证，不能直接视为 GTO 答案。</div></div></div>
 </main>
-<script src="./gto_engine.js"></script>
+<script src="./gto_engine.js?v=7"></script>
 <script>
 const R='23456789TJQKA',S=['♠','♥','♦','♣'];
 const $=id=>document.getElementById(id),pct=x=>Math.round(x*100)+'%',money=x=>Math.max(0,Math.round(x));
@@ -100,7 +100,107 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=7').catch(()=>{}))}
+</script>
+<script>
+(function(){
+  'use strict';
+  const nativeRandom=Math.random;
+  const legacyNewHand=window.newHand;
+  const legacyAssess=window.assess;
+  const legacyResponse=window.response;
+  const legacyNextStreet=window.nextStreet;
+  const legacyFinish=window.finish;
+  const legacyRenderHistory=window.renderHistory;
+  const seedInput=document.createElement('input');
+  const seedBadge=document.createElement('span');
+  const phase6Style=document.createElement('style');
+  phase6Style.textContent='.phase6-seed{width:150px;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);padding:0 10px;font:inherit}.phase6-badge{color:var(--gold);font-size:11px;padding:0 4px}.phase6-action-log{margin-top:8px;padding:8px 10px;border:1px solid #29405a;border-radius:8px;background:#0d1724;color:#a9bbce;font-size:11px}';
+  document.head.appendChild(phase6Style);
+  seedInput.id='seedInput';seedInput.className='phase6-seed';seedInput.placeholder='固定牌局种子（可选）';seedInput.title='填写相同种子即可重现同一手牌';
+  const replayButton=document.createElement('button');replayButton.id='replayBtn';replayButton.textContent='重播本手';
+  const copyButton=document.createElement('button');copyButton.id='copySeedBtn';copyButton.textContent='复制牌局码';
+  const toolbar=document.querySelector('.toolbar');
+  if(toolbar){toolbar.insertBefore(seedInput,toolbar.firstChild);toolbar.insertBefore(replayButton,seedInput.nextSibling);toolbar.insertBefore(copyButton,replayButton.nextSibling)}
+  seedBadge.id='seedBadge';seedBadge.className='phase6-badge';
+  const tableHead=document.querySelector('.table-head');if(tableHead)tableHead.appendChild(seedBadge);
+  const hashSeed=seed=>{let h=2166136261;for(const ch of String(seed)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+  const makeRng=seed=>{let a=hashSeed(seed)||1;return()=>{a+=0x6D2B79F5;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}};
+  const randomSeed=()=>Math.floor(nativeRandom()*0xFFFFFFFF).toString(36).toUpperCase();
+  const roundBB=n=>Math.round(Number(n||0)*10)/10;
+  const snapshot=h=>({street:h.street,board:[...(h.board||[])],pot:Number(h.pot||0),toCall:Number(h.toCall||0),heroStack:Number(h.heroStack||0),villainStack:Number(h.villainStack||0)});
+  const logEvent=(h,actor,action,before,after,amount)=>{h.actionLog=h.actionLog||[];h.actionLog.push({seq:h.actionLog.length+1,actor,action,street:before.street,amount:roundBB(amount),potBefore:roundBB(before.pot),potAfter:roundBB(after.pot),toCallBefore:roundBB(before.toCall),toCallAfter:roundBB(after.toCall),heroStackBefore:roundBB(before.heroStack),heroStackAfter:roundBB(after.heroStack),villainStackBefore:roundBB(before.villainStack),villainStackAfter:roundBB(after.villainStack),boardBefore:before.board,boardAfter:after.board})};
+  const eventLabel=e=>({fold:'弃牌',call:'跟注',raise:'加注',bet:'下注',check:'过牌'}[e]||e);
+  const eventSummary=h=>(h.actionLog||[]).map(e=>(e.actor==='hero'?'你':'机器人')+' '+eventLabel(e.action)+' '+(e.amount?e.amount+'BB':'')).join(' → ');
+  const syncPhase6Latest=()=>{const latest=G.session.history[0];if(latest&&G.hand){latest.seed=G.hand.seed;latest.actionLog=G.hand.actionLog||[];latest.initialPot=G.hand.initialPot;latest.initialToCall=G.hand.initialToCall;latest.initialStack=G.hand.initialStack;latest.scenario=G.hand.scenario;latest.replayVersion='phase6';try{localStorage.setItem('pokerTrainerStats',JSON.stringify(G.session))}catch(e){}}const review=$('review'),node=review?.querySelector('.phase6-action-log');if(node&&G.hand)node.innerHTML='<b>牌局码：</b>'+G.hand.seed+' · <b>动作事件：</b>'+((G.hand.actionLog||[]).length)+'<br><span>线路：'+eventSummary(G.hand)+'</span><br><span>可用“重播本手”复现。</span>'};
+  const preflopKey=(h)=>{let n=Number(h.preflopSize||2.5);if(h.toCall>0)return n>=3.5?'raise4':'raise3';return n<=2.05?'open20':n<=2.3?'open22':n<=2.7?'open25':n<=3.5?'open30':'open40'};
+  const preflopLabel=k=>({open20:'2.0x',open22:'2.2x',open25:'2.5x',open30:'3.0x',open40:'4.0x',raise3:'3bet 3.0x',raise4:'3bet 4.0x'}[k]||k);
+  const oldTreeActionLabel=window.treeActionLabel;
+  window.treeActionLabel=a=>a&&/^(open|raise)\\d+$/.test(a)?preflopLabel(a):oldTreeActionLabel(a);
+  window.assess=function(h,e,a){
+    const r=legacyAssess(h,e,a);
+    if(h.street==='preflop'){
+      const tree=GTO_ENGINE.preflopSizeTree({hand:h.hero,pos:h.pos,facing:h.toCall>0,bot:h.bot});
+      r.tree=tree;r.sizeKey=a==='raise'?preflopKey(h):r.sizeKey;
+      if(a==='raise'){r.probability=tree[r.sizeKey]||0;r.score=r.probability>=.15?Math.round(78+r.probability*22):Math.round(r.probability*100);r.error='翻前尺寸树：'+(tree[r.sizeKey]?preflopLabel(r.sizeKey)+' 属于当前节点混合频率。':'当前尺寸未进入翻前基准树，优先使用 '+preflopLabel(tree.actionKeys.slice().sort((x,y)=>tree[y]-tree[x])[0])+'。')}
+    }
+    return r;
+  };
+  window.renderActions=function(){
+    const h=G.hand;
+    if(G.done){$('sizeRow').innerHTML='';$('actions').innerHTML='<button class="call" id="nextBtn">下一手</button>';$('nextBtn').onclick=window.newHand;return}
+    let sizes=h.street==='preflop'?[['2','2.0x'],['2.2','2.2x'],['2.5','2.5x'],['3','3.0x'],['4','4.0x']]:[['.33','33%'],['.5','50%'],['.75','75%'],['1.25','125%'],['all','全押']];
+    $('sizeRow').innerHTML=sizes.map(x=>'<button class="'+(h.street==='preflop'?String(h.preflopSize||2.5)===x[0]:String(h.betSize)===x[0]?'active':'')+'" data-size="'+x[0]+'">'+x[1]+'</button>').join('');
+    $('sizeRow').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(h.street==='preflop')h.preflopSize=Number(b.dataset.size);else h.betSize=b.dataset.size==='all'?'all':Number(b.dataset.size);window.renderActions()});
+    let choices=[];
+    if(h.toCall>0)choices=[['fold','弃牌','fold'],['call','跟注 '+money(h.toCall),'call'],['raise','再加注到 '+(h.preflopSize||2.5)+'x','raise'],['jam','全押','jam']];
+    else if(h.street==='preflop')choices=[['fold','弃牌','fold'],['raise','开到 '+(h.preflopSize||2.5)+'BB','raise'],['jam','全押','jam']];
+    else choices=[['check','过牌','check'],['bet','下注 '+(h.betSize==='all'?'全押':Math.round(h.pot*Number(h.betSize||.5))),'bet'],['jam','全押','jam']];
+    $('actions').innerHTML=choices.map(x=>'<button class="'+x[2]+'" data-action="'+x[0]+'">'+x[1]+'</button>').join('');
+    $('actions').querySelectorAll('button').forEach(b=>b.onclick=()=>window.act(b.dataset.action));
+  };
+  window.response=function(h,amount){
+    const before=snapshot(h);legacyResponse(h,amount);const after=snapshot(h);
+    const key=h.botActionKey||'',line=String(h.line||'');const action=key==='fold'||line.includes('弃牌')?'fold':key==='call'||line.includes('跟注')?'call':key.startsWith('raise')||key==='jam'||line.includes('加注')?'raise':after.villainStack<before.villainStack?'call':'check';
+    logEvent(h,'bot',action,before,after,before.villainStack-after.villainStack);
+  };
+  window.nextStreet=function(h){
+    const before=snapshot(h);legacyNextStreet(h);const after=snapshot(h);
+    logEvent(h,'bot',after.villainStack<before.villainStack?'bet':'check',before,after,before.villainStack-after.villainStack);
+  };
+  window.act=function(a){
+    const h=G.hand;if(G.done)return;
+    const before=snapshot(h),e=h.board.length?weightedRangeEquity(h.hero,h.board,h.villainRange):0,r=window.assess(h,e,a);let amount=null;
+    if(['bet','raise','jam'].includes(a)){if(a==='jam'||h.betSize==='all')amount=h.heroStack;else if(h.street==='preflop'){const m=Number(h.preflopSize||2.5);amount=h.toCall>0?Math.max(h.toCall,roundBB(h.toCall*m)):roundBB(m)}else amount=Math.round(h.pot*Number(h.betSize||.5));if(h.street==='preflop')r.preflopRaiseTo=amount}
+    h.lastEquity=e;h.score=r.score;record(h,a,r);
+    if(a==='fold'){logEvent(h,'hero','fold',before,snapshot(h),0);window.finish('heroFold');return}
+    if(a==='check'){h.line='你过牌';logEvent(h,'hero','check',before,snapshot(h),0);h.street==='river'?showdown():window.nextStreet(h)}
+    else if(a==='call'){pay(h,h.toCall,'hero');h.toCall=0;h.line='你跟注';logEvent(h,'hero','call',before,snapshot(h),before.toCall);h.street==='river'?showdown():advanceStreet(h)}
+    else{pay(h,amount,'hero');h.line=a==='jam'||h.betSize==='all'?'你全押':h.street==='preflop'?'你开到 '+amount:'你下注 '+amount;logEvent(h,'hero',a,before,snapshot(h),before.heroStack-h.heroStack);window.response(h,amount)}
+    if(!G.done)showNode(h,r,a);render();
+  };
+  window.finish=function(reason){
+    legacyFinish(reason);
+    const latest=G.session.history[0];
+    if(latest&&G.hand){latest.seed=G.hand.seed;latest.actionLog=G.hand.actionLog||[];latest.initialPot=G.hand.initialPot;latest.initialToCall=G.hand.initialToCall;latest.initialStack=G.hand.initialStack;latest.scenario=G.hand.scenario;latest.replayVersion='phase6';}
+    const review=$('review');if(review&&G.hand)review.insertAdjacentHTML('beforeend','<div class="phase6-action-log"><b>牌局码：</b>'+G.hand.seed+' · <b>动作事件：</b>'+((G.hand.actionLog||[]).length)+' · 可用“重播本手”复现。</div>');setTimeout(syncPhase6Latest,0);
+  };
+  window.renderHistory=function(){
+    legacyRenderHistory();
+    const el=$('history');if(!el||!G.session.history.length)return;
+    [...el.querySelectorAll('.history-row')].forEach((row,i)=>{const x=G.session.history[i];if(x?.seed)row.insertAdjacentHTML('beforeend','<br><span class="small">牌局码 '+x.seed+' · '+((x.actionLog||[]).length)+' 个动作事件</span>')});
+  };
+  window.newHand=function(){
+    const seed=seedInput.value.trim()||randomSeed();G.rng=makeRng(seed);Math.random=G.rng;
+    legacyNewHand();G.hand.seed=seed;G.hand.actionLog=[];G.hand.initialPot=G.hand.pot;G.hand.initialToCall=G.hand.toCall;G.hand.initialStack=G.hand.heroStack;G.hand.contributions={hero:0,villain:0};G.hand.preflopSize=G.hand.preflopSize||2.5;seedBadge.textContent='牌局码 '+seed;render();
+  };
+  replayButton.onclick=()=>{if(!G.hand?.seed)return;seedInput.value=G.hand.seed;window.newHand();seedInput.value=''};
+  copyButton.onclick=async()=>{if(!G.hand?.seed)return;try{await navigator.clipboard.writeText(G.hand.seed);copyButton.textContent='已复制';setTimeout(()=>copyButton.textContent='复制牌局码',900)}catch(e){seedInput.value=G.hand.seed;seedInput.select()}};
+  const newBtn=$('newBtn');if(newBtn)newBtn.onclick=window.newHand;
+  $('tableMode').onchange=window.newHand;$('scenario').onchange=window.newHand;
+  const footer=document.querySelector('.footer');if(footer)footer.textContent='当前为第六阶段：固定种子可重现牌局，翻前支持 2.0x/2.2x/2.5x/3.0x/4.0x 尺寸树；每个动作记录街道、投入、底池、筹码和牌面。当前模型仍是可解释的近似训练模型，不等同于完整 GTO 求解器。';
+  window.newHand();
+})();
 </script>
 </body>
 </html>
