@@ -11,6 +11,13 @@
     {key:'bet125',fraction:1.25,label:'125%底池'},
     {key:'jam',fraction:1.25,label:'全押',allIn:true}
   ];
+  const POSTFLOP_RAISES=[
+    {key:'raise33',fraction:.33,label:'加注 33%'},
+    {key:'raise50',fraction:.50,label:'加注 50%'},
+    {key:'raise75',fraction:.75,label:'加注 75%'},
+    {key:'raise125',fraction:1.25,label:'加注 125%'},
+    {key:'jam',fraction:1.25,label:'全押',allIn:true}
+  ];
   const OPEN_LIMIT={UTG:.70,HJ:.66,CO:.60,BTN:.54,SB:.56,BB:.50};
   const DEFEND_LIMIT={UTG:.72,HJ:.68,CO:.64,BTN:.58,SB:.58,BB:.40};
 
@@ -112,6 +119,7 @@
   function estimateEV({equity=0,pot=0,cost=0}){return Number((equity*(pot+cost)-cost).toFixed(3))}
   function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
   function sizeKey(fraction,allIn=false){return allIn?'jam':`bet${Math.round(Number(fraction||.5)*100)}`}
+  function raiseSizeKey(fraction,allIn=false){return allIn?'jam':`raise${Math.round(Number(fraction||.5)*100)}`}
   function sizeEV({equity=0,pot=0,betFraction=.5,stack=100,allIn=false,foldEquity=null}){
     const e=clamp(Number(equity)||0,0,1),p=Math.max(0,Number(pot)||0),s=Math.max(1,Number(stack)||100),cost=allIn?s:clamp(p*Math.max(.25,Number(betFraction)||.5),1,s),fe=foldEquity==null?clamp(.14+(1-e)*.20+(betFraction>=1.2?.06:0),.10,.52):clamp(foldEquity,0,.8);
     return Number((fe*p+(1-fe)*(e*(p+2*cost)-cost)).toFixed(3));
@@ -129,6 +137,33 @@
     for(const size of POSTFLOP_SIZES)evByAction[size.key]=sizeEV({equity:e,pot,betFraction:size.fraction,stack,allIn:!!size.allIn});
     const bestAction=Object.keys(evByAction).sort((a,b)=>evByAction[b]-evByAction[a])[0];
     return{actionKeys:keys,...strategy,evByAction,bestAction,bestEV:evByAction[bestAction],sizes:POSTFLOP_SIZES,street,position:pos,equity:e,model:'6max-100bb-sr-sizing-v3'};
+  }
+  function defenseEV({equity=0,pot=0,toCall=0,raiseFraction=.5,stack=100,allIn=false}){
+    const e=clamp(Number(equity)||0,0,1),p=Math.max(0,Number(pot)||0),call=Math.max(0,Number(toCall)||0),s=Math.max(1,Number(stack)||100),cost=allIn?s:Math.min(s,call+Math.max(1,p*Math.max(.25,Number(raiseFraction)||.5))),fe=clamp(.16+(1-e)*.18+(raiseFraction>=1?.06:0),.08,.48);
+    return Number((fe*p+(1-fe)*(e*(p+2*cost)-cost)).toFixed(3));
+  }
+  function defenseStyle(raw,bot){
+    const s={...raw};
+    if(bot==='pressure'){s.fold=Math.max(0,s.fold-.08);s.call=Math.max(0,s.call-.05);s.raise75+=.06;s.raise125+=.04;s.jam+=.03}
+    if(bot==='sticky'){s.fold=Math.max(0,s.fold-.12);s.call+=.16;s.raise33=Math.max(0,s.raise33-.03);s.raise75=Math.max(0,s.raise75-.02)}
+    if(bot==='trapper'){s.call+=.04;s.raise75+=.05;s.jam+=.05}
+    return s;
+  }
+  function postflopDefenseTree({equity=.5,pot=0,toCall=0,street='flop',pos='BTN',madeStrength=0,draw=false,stack=100,bot='solver'}={}){
+    const e=clamp(Number(equity)||0,0,1),call=Math.max(0,Number(toCall)||0),odds=call/(Math.max(0,Number(pot)||0)+call||1),keys=['fold','call',...POSTFLOP_RAISES.map(x=>x.key)];
+    let raw;
+    if(e<odds-.10)raw={fold:.84,call:.04,raise33:draw ? .06 : .02,raise50:.02,raise75:draw ? .03 : .01,raise125:.01,jam:draw ? .02 : 0};
+    else if(e<odds+.04)raw={fold:.24,call:.52,raise33:.10,raise50:.06,raise75:.05,raise125:.02,jam:.01};
+    else if(e>=.70||madeStrength>=2)raw={fold:.02,call:.21,raise33:.16,raise50:.17,raise75:.25,raise125:.12,jam:.07};
+    else if(draw)raw={fold:.08,call:.52,raise33:.16,raise50:.11,raise75:.08,raise125:.03,jam:.02};
+    else raw={fold:.08,call:.70,raise33:.09,raise50:.06,raise75:.05,raise125:.015,jam:.005};
+    if(pos==='BTN'||pos==='CO'){raw.fold=Math.max(0,raw.fold-.03);raw.call=Math.max(0,raw.call-.02);raw.raise50+=.02;raw.raise75+=.03}
+    if(street==='river'&&draw&&madeStrength<2){raw.raise75+=.03;raw.raise125+=.02}
+    raw=defenseStyle(raw,bot);
+    const strategy=normalizeActions(raw,keys),evByAction={fold:0,call:Number((e*(Math.max(0,Number(pot)||0)+call)-call).toFixed(3))};
+    for(const size of POSTFLOP_RAISES)evByAction[size.key]=defenseEV({equity:e,pot,toCall:call,raiseFraction:size.fraction,stack,allIn:!!size.allIn});
+    const bestAction=Object.keys(evByAction).sort((a,b)=>evByAction[b]-evByAction[a])[0];
+    return{actionKeys:keys,...strategy,evByAction,bestAction,bestEV:evByAction[bestAction],sizes:POSTFLOP_RAISES,street,position:pos,equity:e,odds,model:'6max-100bb-sr-defense-v4'};
   }
   function postflopEV({equity=0,pot=0,toCall=0,betFraction=.5,stack=100}){
     const e=clamp(Number(equity)||0,0,1),p=Math.max(0,Number(pot)||0),callCost=Math.max(0,Number(toCall)||0),betCost=clamp(p*Math.max(.25,Number(betFraction)||.5),1,Math.max(1,Number(stack)||100));
@@ -162,7 +197,7 @@
     const strategy=actionKeys.includes('fold')?styleAdjust(base,bot):normalizeActions(base,actionKeys),evByAction=postflopEV({equity:e,pot:p,toCall:call,betFraction,stack});
     if(!facing){evByAction.check=0;evByAction.bet=evByAction.raise;delete evByAction.raise;delete evByAction.call;delete evByAction.fold}
     const bestEV=Math.max(...Object.values(evByAction));
-    return{...strategy,actionKeys,street,position:pos,facing,odds,equity:e,evByAction,bestEV,sizeTree:facing?null:postflopSizingTree({equity:e,pot:p,street,pos,madeStrength,draw,stack,bot}),model:'6max-100bb-sr-postflop-v3'};
+    return{...strategy,actionKeys,street,position:pos,facing,odds,equity:e,evByAction,bestEV,sizeTree:facing?null:postflopSizingTree({equity:e,pot:p,street,pos,madeStrength,draw,stack,bot}),defenseTree:facing?postflopDefenseTree({equity:e,pot:p,toCall:call,street,pos,madeStrength,draw,stack,bot}):null,model:'6max-100bb-sr-postflop-v4'};
   }
 
   window.GTO_ENGINE={
@@ -182,8 +217,11 @@
     estimateEV,
     postflopEV,
     postflopSizingTree,
+    postflopDefenseTree,
     postflopStrategy,
     postflopSizes:POSTFLOP_SIZES,
-    sizeKey
+    postflopRaises:POSTFLOP_RAISES,
+    sizeKey,
+    raiseSizeKey
   };
 })();
