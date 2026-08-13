@@ -1,5 +1,5 @@
-const CACHE='poker-trainer-v1';
-const CORE=['./','./index.html','./texas_holdem_trainer.html','./manifest.webmanifest','./icon.svg'];
+const CACHE='poker-trainer-v2';
+const CORE=['./','./index.html','./texas_holdem_trainer.html','./gto_engine.js','./manifest.webmanifest','./icon.svg'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));
