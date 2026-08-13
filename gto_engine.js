@@ -4,6 +4,13 @@
   const R='23456789TJQKA';
   const POSITIONS=['UTG','HJ','CO','BTN','SB','BB'];
   const ACTIONS=['fold','call','raise'];
+  const POSTFLOP_SIZES=[
+    {key:'bet33',fraction:.33,label:'33%底池'},
+    {key:'bet50',fraction:.50,label:'50%底池'},
+    {key:'bet75',fraction:.75,label:'75%底池'},
+    {key:'bet125',fraction:1.25,label:'125%底池'},
+    {key:'jam',fraction:1.25,label:'全押',allIn:true}
+  ];
   const OPEN_LIMIT={UTG:.70,HJ:.66,CO:.60,BTN:.54,SB:.56,BB:.50};
   const DEFEND_LIMIT={UTG:.72,HJ:.68,CO:.64,BTN:.58,SB:.58,BB:.40};
 
@@ -36,6 +43,11 @@
     const s=normalize(strategy),x=rng();let acc=0;
     for(const a of ACTIONS){acc+=s[a];if(x<=acc)return a}
     return'ACTION'.replace('ACTION','fold');
+  }
+  function weightedChoiceActions(strategy,rng=Math.random){
+    const keys=strategy?.actionKeys||ACTIONS,s=normalizeActions(strategy,keys),x=rng();let acc=0;
+    for(const key of keys){acc+=s[key];if(x<=acc)return key}
+    return keys[keys.length-1];
   }
   function styleAdjust(base,bot){
     const s={...base};
@@ -99,6 +111,25 @@
   function topRange(range,n=5){return[...(range||[])].sort((a,b)=>b.weight-a.weight).slice(0,n)}
   function estimateEV({equity=0,pot=0,cost=0}){return Number((equity*(pot+cost)-cost).toFixed(3))}
   function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
+  function sizeKey(fraction,allIn=false){return allIn?'jam':`bet${Math.round(Number(fraction||.5)*100)}`}
+  function sizeEV({equity=0,pot=0,betFraction=.5,stack=100,allIn=false,foldEquity=null}){
+    const e=clamp(Number(equity)||0,0,1),p=Math.max(0,Number(pot)||0),s=Math.max(1,Number(stack)||100),cost=allIn?s:clamp(p*Math.max(.25,Number(betFraction)||.5),1,s),fe=foldEquity==null?clamp(.14+(1-e)*.20+(betFraction>=1.2?.06:0),.10,.52):clamp(foldEquity,0,.8);
+    return Number((fe*p+(1-fe)*(e*(p+2*cost)-cost)).toFixed(3));
+  }
+  function postflopSizingTree({equity=.5,pot=0,street='flop',pos='BTN',madeStrength=0,draw=false,stack=100,bot='solver'}={}){
+    const e=clamp(Number(equity)||0,0,1),keys=['check',...POSTFLOP_SIZES.map(x=>x.key)];
+    let raw;
+    if(e>=.70||madeStrength>=2)raw={check:.08,bet33:.20,bet50:.24,bet75:.27,bet125:.15,jam:.06};
+    else if(e>=.50||draw)raw={check:.28,bet33:.27,bet50:.24,bet75:.14,bet125:.05,jam:.02};
+    else if(e>=.35)raw={check:.52,bet33:.24,bet50:.15,bet75:.07,bet125:.02,jam:0};
+    else raw={check:.76,bet33:.16,bet50:.06,bet75:.02,bet125:0,jam:0};
+    if(pos==='BTN'||pos==='CO'){raw.check=Math.max(0,raw.check-.05);raw.bet50+=.02;raw.bet75+=.03}
+    if(street==='river'&&draw&&madeStrength<2){raw.check=Math.max(0,raw.check-.08);raw.bet75+=.04;raw.bet125+=.04}
+    const strategy=normalizeActions(raw,keys),evByAction={check:0};
+    for(const size of POSTFLOP_SIZES)evByAction[size.key]=sizeEV({equity:e,pot,betFraction:size.fraction,stack,allIn:!!size.allIn});
+    const bestAction=Object.keys(evByAction).sort((a,b)=>evByAction[b]-evByAction[a])[0];
+    return{actionKeys:keys,...strategy,evByAction,bestAction,bestEV:evByAction[bestAction],sizes:POSTFLOP_SIZES,street,position:pos,equity:e,model:'6max-100bb-sr-sizing-v3'};
+  }
   function postflopEV({equity=0,pot=0,toCall=0,betFraction=.5,stack=100}){
     const e=clamp(Number(equity)||0,0,1),p=Math.max(0,Number(pot)||0),callCost=Math.max(0,Number(toCall)||0),betCost=clamp(p*Math.max(.25,Number(betFraction)||.5),1,Math.max(1,Number(stack)||100));
     const foldEquity=clamp(.18+(1-e)*.18+(betFraction>.9?.06:0),.12,.48);
@@ -131,7 +162,7 @@
     const strategy=actionKeys.includes('fold')?styleAdjust(base,bot):normalizeActions(base,actionKeys),evByAction=postflopEV({equity:e,pot:p,toCall:call,betFraction,stack});
     if(!facing){evByAction.check=0;evByAction.bet=evByAction.raise;delete evByAction.raise;delete evByAction.call;delete evByAction.fold}
     const bestEV=Math.max(...Object.values(evByAction));
-    return{...strategy,actionKeys,street,position:pos,facing,odds,equity:e,evByAction,bestEV,model:'6max-100bb-sr-postflop-v2'};
+    return{...strategy,actionKeys,street,position:pos,facing,odds,equity:e,evByAction,bestEV,sizeTree:facing?null:postflopSizingTree({equity:e,pot:p,street,pos,madeStrength,draw,stack,bot}),model:'6max-100bb-sr-postflop-v3'};
   }
 
   window.GTO_ENGINE={
@@ -144,11 +175,15 @@
     rankScore,
     strategyFor,
     weightedChoice,
+    weightedChoiceActions,
     makeRange,
     updateRange,
     topRange,
     estimateEV,
     postflopEV,
-    postflopStrategy
+    postflopSizingTree,
+    postflopStrategy,
+    postflopSizes:POSTFLOP_SIZES,
+    sizeKey
   };
 })();
