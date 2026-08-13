@@ -89,7 +89,7 @@ function showdown(){let h=G.hand,a=evaluate([...h.hero,...h.board]),b=evaluate([
 function finish(reason){let h=G.hand;G.done=true;h.showVillain=true;G.session.hands++;let avg=h.decisions.length?Math.round(h.decisions.reduce((s,x)=>s+x.score,0)/h.decisions.length):0;h.score=avg;let first=h.decisions[0];if(first&&first.street==='preflop'&&first.action!=='fold')G.session.vpip=(G.session.vpip||0)+1;if(first&&first.street==='preflop'&&['raise','bet','jam'].includes(first.action))G.session.pfr=(G.session.pfr||0)+1;G.session.history.unshift({id:G.session.hands,hero:[...h.hero],board:[...h.board],bot:h.botName,score:avg,result:h.result||reason,decisions:h.decisions});G.session.history=G.session.history.slice(0,50);try{localStorage.setItem('pokerTrainerStats',JSON.stringify(G.session))}catch(e){}let summary=h.result?`${h.result}。${h.resultDetail}`:reason==='heroFold'?'你弃牌，对手赢得未摊牌底池。':'对手弃牌，你赢得底池。';$('review').className='review '+(avg>=80?'good':avg>=55?'warn':'bad');$('review').innerHTML=`<div class="panel-title">完整牌局复盘 <span>对手类型已揭示</span></div><div class="review-head"><div><h3>${summary}</h3><div class="small">${h.tableMode==='6max'?'6-max':'单挑'} · ${h.villainPos} · <span class="pill">${h.botName}</span> · ${h.decisions.length} 个节点</div></div><div class="score ${avg<55?'bad':avg<80?'warn':''}">${avg}</div></div><div class="meter"><span style="width:${avg}%"></span></div><p><b>完整线路：</b>${h.decisions.map(x=>labelStreet(x.street)+' '+x.action+' '+x.score).join(' → ')||'未做出行动'}。</p><p><b>复盘下一步：</b>查看水平分析中的趋势、街道表现和漏洞；再用同类场景继续训练。</p>`;render()}
 function finalActionName(a){if(/^bet\d+$/.test(a))return`下注 ${a.slice(3)}%`;if(/^raise\d+$/.test(a))return`加注 ${a.slice(5)}%`;return{fold:'弃牌',call:'跟注',check:'过牌',bet:'下注',raise:'加注',jam:'全押'}[a]||a}function decisionActionName(d){let name=finalActionName(d.action);return(d.action==='bet'||d.action==='raise')&&d.betSize?`${name} · ${d.betSize}`:name}
 function finalIssue(d){if(d.action===d.optimal)return'主线一致';if(d.action==='call'&&d.optimal!=='call')return'过度跟注';if(d.action==='fold'&&d.optimal!=='fold')return'过度弃牌';if(['bet','raise','jam'].includes(d.action)&&!['bet','raise'].includes(d.optimal))return'主动性/诈唬频率偏高';if(['check','call'].includes(d.action)&&['bet','raise'].includes(d.optimal))return'价值或保护不足';return'行动尺度或线路不一致'}
-function finish(reason){let h=G.hand;G.done=true;h.showVillain=true;G.session.hands++;let avg=h.decisions.length?Math.round(h.decisions.reduce((s,x)=>s+x.score,0)/h.decisions.length):0;h.score=avg;let first=h.decisions[0];if(first&&first.street==='preflop'&&first.action!=='fold')G.session.vpip=(G.session.vpip||0)+1;if(first&&first.street==='preflop'&&['raise','bet','jam'].includes(first.action))G.session.pfr=(G.pfr||0)+1;G.session.history.unshift({id:G.session.hands,hero:[...h.hero],board:[...h.board],bot:h.botName,score:avg,result:h.result||reason,decisions:h.decisions});G.session.history=G.session.history.slice(0,50);try{localStorage.setItem('pokerTrainerStats',JSON.stringify(G.session))}catch(e){}let mistakes=h.decisions.filter(d=>d.probability<.15),issues=[...new Set(mistakes.map(finalIssue))],optimal=h.decisions.map(d=>`${labelStreet(d.street)} ${finalActionName(d.optimal)}`).join(' → ')||'未完成决策',rows=h.decisions.map((d,i)=>{let status=d.probability>=.15?'good':d.score>=55?'warn':'bad',label=d.probability>=.15?'策略频率内':finalIssue(d),freq=d.probability==null?'—':`${Math.round(d.probability*100)}%`;return`<div class="decision-row ${status}"><div class="decision-top"><span><b>${i+1}. ${labelStreet(d.street)}</b> · 你：${decisionActionName(d)} · 最高频率：${finalActionName(d.optimal)}</span><strong>${d.score}</strong></div><div class="decision-data">GTO基准频率 ${freq} · 权益 ${d.equity==null?'—':pct(d.equity)} · 底池 ${money(d.pot)} · 跟注 ${money(d.toCall)} · ${label}${d.remote?` · ${d.remote}`:''}</div>${d.probability<.15?`<div class="small">${d.error}</div>`:''}</div>`}).join(''),summary=h.result?`${h.result}。${h.resultDetail}`:reason==='heroFold'?'你弃牌，对手赢得未摊牌底池。':'对手弃牌，你赢得底池。';$('review').className='review '+(avg>=80?'good':avg>=55?'warn':'bad');$('review').innerHTML=`<div class="panel-title">完整牌局复盘 <span>对手类型已揭示</span></div><div class="review-head"><div><h3>${summary}</h3><div class="small">${h.tableMode==='6max'?'6-max':'单挑'} · ${h.villainPos} · <span class="pill">${h.botName}</span> · ${h.decisions.length} 个节点</div></div><div class="score ${avg<55?'bad':avg<80?'warn':''}">${avg}</div></div><div class="meter"><span style="width:${avg}%"></span></div><div class="optimal-line"><b>建议最优主线：</b>${optimal}<br><span class="small">GTO 是混合策略；本手按策略频率评价，而不是把单一动作当成唯一答案。</span></div><p><b>本手问题：</b>${issues.length?issues.join('、'):'没有明显偏离当前基准频率。'}</p><div class="decision-list">${rows||'<div class="empty">没有可复盘的行动节点。</div>'}</div><p><b>下一步：</b>优先重复出现频率低于 15% 的动作节点；之后进入翻牌后策略树和 EV 损失分析。</p>`;render()}
+function finish(reason){let h=G.hand;G.done=true;h.showVillain=true;G.session.hands++;let avg=h.decisions.length?Math.round(h.decisions.reduce((s,x)=>s+x.score,0)/h.decisions.length):0;h.score=avg;let first=h.decisions[0];if(first&&first.street==='preflop'&&first.action!=='fold')G.session.vpip=(G.session.vpip||0)+1;if(first&&first.street==='preflop'&&['raise','bet','jam'].includes(first.action))G.session.pfr=(G.pfr||0)+1;G.session.history.unshift({id:G.session.hands,hero:[...h.hero],board:[...h.board],bot:h.botName,score:avg,result:h.result||reason,decisions:h.decisions});G.session.history=G.session.history.slice(0,50);try{localStorage.setItem('pokerTrainerStats',JSON.stringify(G.session))}catch(e){}let mistakes=h.decisions.filter(d=>d.probability<.15),issues=[...new Set(mistakes.map(finalIssue))],optimal=h.decisions.map(d=>`${labelStreet(d.street)} ${finalActionName(d.optimal)}`).join(' → ')||'未完成决策',rows=h.decisions.map((d,i)=>{let status=d.probability>=.15?'good':d.score>=55?'warn':'bad',label=d.probability>=.15?'策略频率内':finalIssue(d),freq=d.probability==null?'—':`${Math.round(d.probability*100)}%`,source=d.strategyEvidence?.status==='verified'?'Solver 节点频率':'近似模型频率';return`<div class="decision-row ${status}"><div class="decision-top"><span><b>${i+1}. ${labelStreet(d.street)}</b> · 你：${decisionActionName(d)} · 最高频率：${finalActionName(d.optimal)}</span><strong>${d.score}</strong></div><div class="decision-data">${source} ${freq} · 权益 ${d.equity==null?'—':pct(d.equity)} · 底池 ${money(d.pot)} · 跟注 ${money(d.toCall)} · ${label}${d.remote?` · ${d.remote}`:''}</div>${d.probability<.15?`<div class="small">${d.error}</div>`:''}</div>`}).join(''),summary=h.result?`${h.result}。${h.resultDetail}`:reason==='heroFold'?'你弃牌，对手赢得未摊牌底池。':'对手弃牌，你赢得底池。';$('review').className='review '+(avg>=80?'good':avg>=55?'warn':'bad');$('review').innerHTML=`<div class="panel-title">完整牌局复盘 <span>对手类型已揭示</span></div><div class="review-head"><div><h3>${summary}</h3><div class="small">${h.tableMode==='6max'?'6-max':'单挑'} · ${h.villainPos} · <span class="pill">${h.botName}</span> · ${h.decisions.length} 个节点</div></div><div class="score ${avg<55?'bad':avg<80?'warn':''}">${avg}</div></div><div class="meter"><span style="width:${avg}%"></span></div><div class="optimal-line"><b>策略建议主线：</b>${optimal}<br><span class="small">频率策略不代表只有一个合法动作；具体证据等级见每个节点标签。</span></div><p><b>本手问题：</b>${issues.length?issues.join('、'):'没有明显偏离当前基准频率。'}</p><div class="decision-list">${rows||'<div class="empty">没有可复盘的行动节点。</div>'}</div><p><b>下一步：</b>优先重复出现频率低于 15% 的动作节点；之后进入翻牌后策略树和 EV 损失分析。</p>`;render()}
 function level(){let s=G.session,avg=s.decisions?Math.round(s.total/s.decisions):0;if(!s.hands)return{g:'—',t:'完成牌局后评估。',n:0};if(s.hands<5)return{g:'样本期',t:`已完成 ${s.hands} 手；至少 10 手后，风格和能力趋势才更可靠。`,n:avg};let g=avg>=88&&s.hands>=30?'高级':avg>=78&&s.hands>=20?'进阶':avg>=67?'中级':avg>=55?'入门':'基础',focus=s.errors.overcall>s.errors.overbluff?'赔率与弃牌纪律':s.errors.overbluff>s.errors.overfold?'阻断牌与诈唬组合':s.errors.overfold?'河牌 bluff-catch':'翻牌前范围与位置';return{g,t:`当前重点：${focus}。这是训练决策质量，不等同于真实牌局盈利等级。`,n:avg}}
 function renderDashboard(){let s=G.session,d=Math.max(1,s.decisions),h=Math.max(1,s.hands),avg=s.decisions?Math.round(s.total/d):0,l=level();$('levelGrade').textContent=l.g;$('levelText').textContent=l.t;$('levelRing').style.background=`conic-gradient(var(--green) 0 ${Math.max(8,l.n)}%,#263a51 ${Math.max(8,l.n)}% 100%)`;$('vpip').textContent=s.hands?pct((s.vpip||0)/h):'—';$('pfr').textContent=s.hands?pct((s.pfr||0)/h):'—';$('af').textContent=s.decisions?((s.actions.bet+s.actions.raise+s.actions.jam)/Math.max(1,s.actions.call)).toFixed(2):'—';$('avgScore').textContent=s.decisions?avg:'—';let history=s.history.filter(x=>typeof x.score==='number').slice(0,12).reverse(),max=Math.max(100,...history.map(x=>x.score));$('trendChart').innerHTML=history.length?history.map(x=>`<i title="#${x.id} ${x.score}" style="height:${Math.max(6,Math.round(x.score/max*100))}%"></i>`).join(''):'<span class="small">完成牌局后显示趋势</span>';$('trendLabel').textContent=history.length?`最近 ${history.length} 手`:'暂无数据';$('scoreDonut').style.background=`conic-gradient(var(--green) 0 ${avg}%,var(--gold) ${avg}% ${Math.min(100,avg+15)}%,#2a3c55 ${Math.min(100,avg+15)}% 100%)`;$('scoreDonut').querySelector('b').textContent=s.decisions?avg:'—';let names={preflop:'翻前',flop:'翻牌',turn:'转牌',river:'河牌'};$('streetBars').innerHTML=Object.entries(s.streets).map(([k,v])=>{let n=v.n?Math.round(v.score/v.n):0;return`<div class="bar-row"><span>${names[k]}</span><div class="bar"><i style="width:${n}%"></i></div><span>${v.n?n:'—'}</span></div>`}).join('');let skill=Object.entries(s.streets).map(([k,v])=>[names[k],v.n?Math.round(v.score/v.n):0]);$('skillBars').innerHTML=skill.map(x=>`<div class="bar-row"><span>${x[0]}</span><div class="bar"><i style="width:${x[1]}%"></i></div><span>${x[1]||'—'}</span></div>`).join('');let issues=[];if((s.vpip||0)/h>.38)issues.push(['偏松','VPIP 偏高，重点检查位置外的边缘牌入池。','']);if(s.hands>=5&&(s.vpip||0)/h<.16)issues.push(['偏紧','VPIP 偏低，可能错过盲注防守和有利偷盲。','']);if((s.pfr||0)/h<(s.vpip||0)/h-.13&&s.hands>=5)issues.push(['偏被动','VPIP 与 PFR 差距较大，进入底池后主动性不足。','']);if(s.errors.overcall>2)issues.push(['过度跟注','权益不足时继续投入的节点偏多。','']);if(s.errors.overbluff>2)issues.push(['过度诈唬','低权益主动下注/加注偏多，检查阻断牌。','']);if(s.errors.overfold>2)issues.push(['过度弃牌','有继续权益却弃牌，重点复盘河牌防守。','']);if(s.good>=Math.max(2,s.decisions*.65))issues.push(['范围纪律好','大多数节点与权益和赔率主线一致。','good']);if(!issues.length)issues=[['数据积累中','完成 5–10 手后，优势和漏洞会更稳定。','']];$('issues').innerHTML=issues.map(x=>`<div class="issue ${x[2]}"><b>${x[0]}</b><br>${x[1]}</div>`).join('');renderHistory();renderSpotStats(s)}
 function renderSpotStats(s){let el=$('spotStats');if(!el)return;let rows=Object.entries(s.spots||{}).filter(([,v])=>v.n).sort((a,b)=>(a[1].score/a[1].n)-(b[1].score/b[1].n)).slice(0,6);el.innerHTML=rows.length?rows.map(([k,v])=>{let avg=Math.round(v.score/v.n),top=Object.entries(v.actions||{}).sort((a,b)=>b[1]-a[1])[0];return`<div class="spot-row"><b>${spotLabel(k)}</b><br>平均得分 ${avg} · ${v.n} 个节点 · 累计 EV 损失 ${Number(v.evLoss||0).toFixed(1)}BB<small>最常用动作：${top?`${finalActionName(top[0])} ${top[1]} 次`:'—'}</small></div>`}).join(''):'<div class="empty">完成决策后显示最容易失分的具体节点。</div>'}
@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=10').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=11').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -444,6 +444,104 @@ window.parseImported=function(text){
   const previousRender=window.render;
   window.render=function(){previousRender();window.renderOnlineCatalog()};
   window.render();
+})();
+</script>
+<script>
+/* Phase 10: trusted audit registry, local pack import, coverage analytics and
+   evidence-aware review wording. */
+(function(){
+  'use strict';
+  const style=document.createElement('style');
+  style.textContent='.solver-coverage{margin:0 0 10px;padding:10px;border:1px solid #29405a;border-radius:10px;background:#0d1724}.solver-coverage-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#dce8f3;font-size:12px}.solver-coverage-head strong{color:var(--green);font-size:17px}.solver-coverage-bar{display:flex;height:8px;margin:7px 0;overflow:hidden;border-radius:99px;background:#27374c}.solver-coverage-bar i{display:block;height:100%}.solver-coverage-bar .verified{background:#64dcae}.solver-coverage-bar .unverified{background:#e8b84c}.solver-coverage-bar .approximate{background:#71879a}.solver-coverage-meta{color:var(--muted);font-size:10px}.pack-import{margin:9px 0;padding:9px;border:1px dashed #46617b;border-radius:8px;background:#0b1622}.pack-import button{margin-top:7px}.review-evidence-summary{margin-top:9px;padding:8px;border:1px solid #2c455f;border-radius:8px;background:#0c1926;color:#c8d7e5;font-size:11px}';
+  document.head.appendChild(style);
+
+  const scoredDecisions=()=>{
+    const historical=(G.session?.history||[]).flatMap(hand=>hand.decisions||[]).filter(decision=>typeof decision.score==='number');
+    if(G.hand&&!G.done)return[...historical,...(G.hand.decisions||[])];
+    return historical;
+  };
+  const summarizeEvidence=decisions=>{
+    const summary={total:0,verified:0,unverified:0,approximate:0};
+    for(const decision of decisions||[]){
+      if(typeof decision?.score!=='number')continue;
+      summary.total++;
+      const status=decision.strategyEvidence?.status;
+      if(status==='verified')summary.verified++;
+      else if(status==='unverified')summary.unverified++;
+      else summary.approximate++;
+    }
+    summary.coverage=summary.total?summary.verified/summary.total:0;
+    return summary;
+  };
+  const coveragePanel=document.createElement('div');
+  coveragePanel.id='solverCoverage';coveragePanel.className='solver-coverage';
+  document.querySelector('#tab-analysis .analysis-grid')?.insertAdjacentElement('beforebegin',coveragePanel);
+  function renderCoverage(){
+    const s=summarizeEvidence(scoredDecisions()),pctVerified=Math.round(s.coverage*100),unit=s.total?100/s.total:0;
+    coveragePanel.innerHTML='<div class="solver-coverage-head"><span>可审计 Solver 节点覆盖率</span><strong>'+pctVerified+'%</strong></div><div class="solver-coverage-bar" aria-label="Solver 覆盖率 '+pctVerified+'%"><i class="verified" style="width:'+(s.verified*unit)+'%"></i><i class="unverified" style="width:'+(s.unverified*unit)+'%"></i><i class="approximate" style="width:'+(s.approximate*unit)+'%"></i></div><div class="solver-coverage-meta">已审核 '+s.verified+' · 命中但未审核 '+s.unverified+' · 近似/历史节点 '+s.approximate+' · 共 '+s.total+' 个决策</div>';
+  }
+
+  const importHost=$('installedList')?.parentElement;
+  if(importHost){
+    const box=document.createElement('div');box.className='pack-import';
+    box.innerHTML='<b>导入本地策略包</b><br><span class="small">支持 '+STRATEGY_PACKS.FORMAT+' JSON。只有连接本地验证服务并命中可信审核表，才会用于 Solver 评分。</span><br><label class="import-label" for="strategyPackInput">选择策略包 JSON</label><input id="strategyPackInput" class="file-input" type="file" accept=".json,application/json">';
+    importHost.insertBefore(box,$('installedList'));
+    $('strategyPackInput').onchange=async event=>{
+      const file=event.target.files?.[0];if(!file)return;
+      try{
+        const candidate=JSON.parse(await file.text());
+        delete candidate.verification;
+        const clientReport=STRATEGY_PACKS.validate(candidate);
+        if(!clientReport.valid)throw new Error(clientReport.errors.join('；'));
+        if(G.online.server){
+          const checked=await api('/api/validate-strategy-pack',{method:'POST',body:JSON.stringify(candidate)});
+          candidate.verification=checked.report;
+        }
+        window.applyPack(candidate);
+        const q=STRATEGY_PACKS.qualification(candidate);
+        const message=q.qualified?'已导入并通过可信审核，可用于 Solver 节点评分。':q.integrity?'已导入且哈希一致，但未命中可信审核表；不会用于 Solver 评分。':'已导入为未验证策略包；不会用于 Solver 评分。';
+        onlineLog(message);alert(message);
+      }catch(error){onlineLog('策略包导入失败：'+error.message);alert('策略包导入失败：'+error.message)}finally{event.target.value=''}
+    };
+  }
+
+  function relabelNodeReview(){
+    const review=$('review'),decision=G.hand?.decisions?.at(-1);if(!review||!decision)return;
+    const verified=decision.strategyEvidence?.status==='verified';
+    for(const paragraph of review.querySelectorAll('p')){
+      const heading=paragraph.querySelector('b');
+      if(heading?.textContent==='策略频率：')heading.textContent=verified?'Solver 策略频率：':'近似模型频率：';
+    }
+    const source=[...review.querySelectorAll('p.small')].at(-1);
+    if(source)source.textContent=verified?'该节点频率与 EV 来自已通过完整性校验和可信审核登记的策略包。':'该节点频率与 EV 来自可解释近似模型，不等同于 Solver 或 GTO 输出。';
+  }
+  function relabelFinalReview(){
+    const review=$('review'),decisions=G.hand?.decisions||[];if(!review)return;
+    const rows=review.querySelectorAll('.decision-row');
+    rows.forEach((row,index)=>{
+      const evidence=decisions[index]?.strategyEvidence,status=evidence?.status||'approximate';
+      const data=row.querySelector('.decision-data');
+      if(data&&status==='unverified')data.textContent=data.textContent.replace(/^近似模型频率/,'未审核包未采用 · 近似频率');
+    });
+    const summary=summarizeEvidence(decisions),allVerified=summary.total>0&&summary.verified===summary.total;
+    const line=review.querySelector('.optimal-line');
+    if(line){
+      const heading=line.querySelector('b'),note=line.querySelector('.small');
+      if(heading)heading.textContent=allVerified?'Solver 建议主线：':'近似模型建议主线：';
+      if(note)note.textContent=allVerified?'所有决策节点均由可信审核策略包覆盖；频率策略并不意味着只有一个合法动作。':'未被可信策略包覆盖的节点按近似模型评价；这些建议不能标记为 GTO。';
+    }
+    review.querySelector('.review-evidence-summary')?.remove();
+    review.insertAdjacentHTML('beforeend','<div class="review-evidence-summary"><b>本手 Solver 覆盖：</b>'+summary.verified+'/'+summary.total+' 个决策节点 · 未审核命中 '+summary.unverified+' · 近似 '+summary.approximate+'</div>');
+  }
+
+  const oldShowNode=window.showNode;
+  window.showNode=function(hand,result,action){oldShowNode(hand,result,action);relabelNodeReview();renderCoverage()};
+  const oldFinish=window.finish;
+  window.finish=function(reason){oldFinish(reason);relabelFinalReview();renderCoverage()};
+  const oldRender=window.render;
+  window.render=function(){oldRender();renderCoverage()};
+  window.PHASE10={summarizeEvidence,relabelFinalReview,renderCoverage};
+  renderCoverage();
 })();
 </script>
 </body>

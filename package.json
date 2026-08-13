@@ -7,7 +7,9 @@
     "start": "node poker_trainer_server.mjs",
     "test:phase6": "node phase6_regression.mjs",
     "test:phase7": "node phase7_regression.mjs",
-    "test:phase9": "node phase9_regression.mjs"
+    "test:phase9": "node phase9_regression.mjs",
+    "test:phase10": "node phase10_regression.mjs",
+    "test": "npm run test:phase6 && npm run test:phase7 && npm run test:phase9 && npm run test:phase10"
   },
   "engines": {
     "node": ">=18"

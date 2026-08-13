@@ -29,6 +29,8 @@ assert.ok(matched);
 assert.equal(matched.frequencies.call,.68);
 assert.equal(matched.trust.qualified,false,'client must not treat a self-declared audit as verified without server integrity evidence');
 pack.verification={integrityValid:true};
+assert.equal(packs.matchBest([pack],{players:6,stackBB:100,street:'river',heroPosition:'BB',villainPosition:'BTN',facingBet:true,board:[],texture:'干燥面',lineKey:''}).trust.qualified,false,'integrity alone must not grant solver status');
+pack.verification={integrityValid:true,auditTrusted:true,qualification:'solver-verified'};
 assert.equal(packs.matchBest([pack],{players:6,stackBB:100,street:'river',heroPosition:'BB',villainPosition:'BTN',facingBet:true,board:[],texture:'干燥面',lineKey:''}).trust.qualified,true);
 assert.equal(packs.matchBest([pack],{players:6,stackBB:100,street:'turn',heroPosition:'BB',villainPosition:'BTN',facingBet:true,board:[],texture:'干燥面',lineKey:''}),null);
 
@@ -45,7 +47,8 @@ try{
   const body=await response.json();
   assert.equal(response.status,200);
   assert.equal(body.report.integrityValid,true);
-  assert.equal(body.report.qualification,'solver-verified');
+  assert.equal(body.report.auditTrusted,false,'a self-declared audit must not be trusted');
+  assert.equal(body.report.qualification,'integrity-verified');
 }finally{server.kill()}
 
 console.log('phase9 regression ok');

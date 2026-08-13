@@ -9,6 +9,8 @@ const DATA=path.join(ROOT,'poker_trainer_data');
 const PORT=Number(process.env.PORT||8787);
 const MAX_BYTES=1_500_000;
 const STRATEGY_FORMAT='poker-trainer-strategy-pack/v1';
+const AUDIT_FORMAT='poker-trainer-trusted-audits/v1';
+const AUDIT_FILE=path.join(ROOT,'trusted_solver_audits.json');
 const ALLOWED_HOSTS=new Set(['api.github.com','raw.githubusercontent.com','github.com','zenodo.org','huggingface.co','raw.github.com']);
 for(const d of ['packs','bots','models','sources'])fs.mkdirSync(path.join(DATA,d),{recursive:true});
 const json=(res,status,body)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','access-control-allow-origin':'*','access-control-allow-headers':'content-type'});res.end(JSON.stringify(body,null,2))};
@@ -19,7 +21,59 @@ function hash(value){return crypto.createHash('sha256').update(value).digest('he
 function stable(value){if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(key=>[key,stable(value[key])]));return value}
 function strategyPayload(pack){let clone=JSON.parse(JSON.stringify(pack||{}));for(const key of ['integrity','verification','id','kind','quality','updatedAt','items','fetchedFrom'])delete clone[key];return stable(clone)}
 function sha256(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')}
-function validateStrategyPack(pack){let errors=[];if(!pack||typeof pack!=='object'||Array.isArray(pack))return{valid:false,integrityValid:false,errors:['策略包必须是 JSON 对象']};if(pack.format!==STRATEGY_FORMAT)errors.push('format 必须为 '+STRATEGY_FORMAT);if(!String(pack.name||'').trim())errors.push('缺少 name');if(!String(pack.version||'').trim())errors.push('缺少 version');if(!String(pack.source?.url||'').startsWith('https://'))errors.push('source.url 必须是 HTTPS 地址');if(!String(pack.source?.solver||'').trim())errors.push('缺少 source.solver');if(!pack.solution||typeof pack.solution!=='object')errors.push('缺少 solution');if(!Array.isArray(pack.nodes)||!pack.nodes.length)errors.push('nodes 至少需要一个节点');for(const [index,node] of (pack.nodes||[]).entries()){if(!String(node?.id||'').trim())errors.push(`nodes[${index}] 缺少 id`);if(!['preflop','flop','turn','river'].includes(node?.match?.street))errors.push(`nodes[${index}] match.street 无效`);if(!String(node?.match?.heroPosition||'').trim()||!String(node?.match?.villainPosition||'').trim())errors.push(`nodes[${index}] 缺少位置`);let values=Object.values(node?.strategy?.frequencies||{});if(!values.length||values.some(value=>typeof value!=='number'||value<0)||values.reduce((sum,value)=>sum+value,0)<=0)errors.push(`nodes[${index}] strategy.frequencies 无效`)}let actual=sha256(strategyPayload(pack)),declared=String(pack.integrity?.payloadSha256||'').toLowerCase(),integrityValid=/^[a-f0-9]{64}$/.test(declared)&&declared===actual;let audit=pack.audit?.status==='solver-verified';return{valid:errors.length===0,errors,integrity:{algorithm:'sha256',declared:declared||null,actual},integrityValid,auditDeclared:audit,qualification:integrityValid&&audit?'solver-verified':integrityValid?'integrity-verified':'unverified'}}
+function trustedAuditRegistry(){
+  let registry={format:AUDIT_FORMAT,version:'local-empty',entries:[]};
+  try{
+    registry=process.env.TRUSTED_AUDITS_JSON?JSON.parse(process.env.TRUSTED_AUDITS_JSON):JSON.parse(fs.readFileSync(AUDIT_FILE,'utf8'));
+  }catch(error){console.warn(`trusted audit registry unavailable: ${error.message}`)}
+  if(registry?.format!==AUDIT_FORMAT||!Array.isArray(registry.entries))return{format:AUDIT_FORMAT,version:'invalid',entries:[]};
+  return registry;
+}
+function findTrustedAudit(pack,payloadSha256){
+  const registry=trustedAuditRegistry();
+  const entry=registry.entries.find(item=>
+    String(item?.payloadSha256||'').toLowerCase()===payloadSha256&&
+    (!item.sourceUrl||item.sourceUrl===pack.source?.url)&&
+    (!item.solver||item.solver===pack.source?.solver)&&
+    (!item.packName||item.packName===pack.name)&&
+    (!item.packVersion||item.packVersion===pack.version)
+  );
+  return{registryVersion:registry.version||'unknown',entry:entry||null};
+}
+function validateStrategyPack(pack){
+  const errors=[];
+  if(!pack||typeof pack!=='object'||Array.isArray(pack))return{valid:false,integrityValid:false,auditTrusted:false,errors:['策略包必须是 JSON 对象'],qualification:'unverified'};
+  if(pack.format!==STRATEGY_FORMAT)errors.push('format 必须为 '+STRATEGY_FORMAT);
+  if(!String(pack.name||'').trim())errors.push('缺少 name');
+  if(!String(pack.version||'').trim())errors.push('缺少 version');
+  if(!String(pack.source?.url||'').startsWith('https://'))errors.push('source.url 必须是 HTTPS 地址');
+  if(!String(pack.source?.solver||'').trim())errors.push('缺少 source.solver');
+  if(!pack.solution||typeof pack.solution!=='object')errors.push('缺少 solution');
+  if(!Array.isArray(pack.nodes)||!pack.nodes.length)errors.push('nodes 至少需要一个节点');
+  for(const [index,node] of (pack.nodes||[]).entries()){
+    if(!String(node?.id||'').trim())errors.push(`nodes[${index}] 缺少 id`);
+    if(!['preflop','flop','turn','river'].includes(node?.match?.street))errors.push(`nodes[${index}] match.street 无效`);
+    if(!String(node?.match?.heroPosition||'').trim()||!String(node?.match?.villainPosition||'').trim())errors.push(`nodes[${index}] 缺少位置`);
+    const values=Object.values(node?.strategy?.frequencies||{});
+    if(!values.length||values.some(value=>typeof value!=='number'||value<0)||values.reduce((sum,value)=>sum+value,0)<=0)errors.push(`nodes[${index}] strategy.frequencies 无效`);
+  }
+  const actual=sha256(strategyPayload(pack));
+  const declared=String(pack.integrity?.payloadSha256||'').toLowerCase();
+  const integrityValid=/^[a-f0-9]{64}$/.test(declared)&&declared===actual;
+  const trusted=findTrustedAudit(pack,actual);
+  const auditTrusted=Boolean(integrityValid&&trusted.entry);
+  return{
+    valid:errors.length===0,
+    errors,
+    integrity:{algorithm:'sha256',declared:declared||null,actual},
+    integrityValid,
+    auditDeclared:pack.audit?.status==='solver-verified',
+    auditTrusted,
+    registryVersion:trusted.registryVersion,
+    audit:trusted.entry,
+    qualification:auditTrusted?'solver-verified':integrityValid?'integrity-verified':'unverified'
+  };
+}
 function files(dir){return fs.readdirSync(dir).filter(x=>x.endsWith('.json')).map(x=>JSON.parse(fs.readFileSync(path.join(dir,x),'utf8')))}
 function catalog(){return{packs:files(path.join(DATA,'packs')),bots:files(path.join(DATA,'bots')),models:files(path.join(DATA,'models')),sources:files(path.join(DATA,'sources'))}}
 function normalize(raw,kind,source){let value=raw;if(typeof raw==='string'){try{value=JSON.parse(raw)}catch{value={raw:raw.slice(0,20000)}}}if(kind==='strategy'&&value?.format===STRATEGY_FORMAT){let report=validateStrategyPack(value);return{...value,id:value.id||`${kind}-${hash(JSON.stringify(value))}`,kind,items:value.nodes,source:value.source, fetchedFrom:source,updatedAt:new Date().toISOString(),license:value.license||'unknown',quality:report.qualification,verification:report}}let items=value.items||value.scenarios||value.strategies||value.metrics||value.models||value.bots||value;let pack={id:`${kind}-${hash(JSON.stringify(value))}`,kind,name:value.name||value.title||`${kind} update`,version:value.version||new Date().toISOString().slice(0,10),source,updatedAt:new Date().toISOString(),items:Array.isArray(items)?items:[items],license:value.license||'unknown',quality:'unverified'};return pack}

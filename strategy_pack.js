@@ -52,9 +52,13 @@
   }
   function qualification(pack){
     const verification=pack?.verification||{};
-    const audited=pack?.audit?.status==='solver-verified';
-    const integrity=verification.integrityValid===true||pack?.integrity?.status==='sha256-verified';
-    return{audited,integrity,qualified:audited&&integrity,label:audited&&integrity?'可审计 solver 节点':'未验证策略包'};
+    // Never trust claims embedded in the pack itself. Only a validation service
+    // that matched the payload hash against the local trusted-audit registry may
+    // set auditTrusted. This prevents a pack from self-labelling as solver/GTO.
+    const audited=verification.auditTrusted===true;
+    const integrity=verification.integrityValid===true;
+    const qualified=audited&&integrity&&verification.qualification==='solver-verified';
+    return{audited,integrity,qualified,label:qualified?'可审计 solver 节点':integrity?'完整性已验证，未获可信审核':'未验证策略包'};
   }
   function matchBest(packs,context){
     const candidates=[];
