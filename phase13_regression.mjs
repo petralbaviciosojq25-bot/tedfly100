@@ -15,7 +15,7 @@ assert.match(html,/id="startFocus"/);
 assert.match(html,/return; \/\/ Replaced by the single-source Phase 13 layout below\./);
 assert.match(html,/register\('\.\/sw\.js\?v=13'\)/);
 assert.match(sw,/poker-trainer-v13/);
-assert.match(entry,/location\.replace\('\.\/texas_holdem_trainer\.html'\)/);
-assert.match(entry,/href="\.\/texas_holdem_trainer\.html"/);
+assert.match(entry,/location\.replace\('\.\/texas_holdem_trainer\.html\?v=13'\)/);
+assert.match(entry,/href="\.\/texas_holdem_trainer\.html\?v=13"/);
 
 console.log('phase13 regression ok');
