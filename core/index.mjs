@@ -10,3 +10,4 @@ export * from './strategy_pack.mjs';
 export * from './strategy_audit.mjs';
 export * from './dealer.mjs';
 export * from './training_table.mjs';
+export * from './table_presentation.mjs';

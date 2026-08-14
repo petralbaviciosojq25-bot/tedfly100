@@ -1,6 +1,9 @@
 import { PROFILE_VERSION } from './version.mjs';
 
 const STREET_ORDER = ['preflop', 'flop', 'turn', 'river'];
+const MIN_RATING_DECISIONS = 30;
+const MIN_STREET_DECISIONS = 3;
+const WEAK_STREET_SCORE = 70;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
@@ -36,13 +39,13 @@ export function summarizePlayerProfile(session = {}) {
   const averageEVLoss = Number(mean(evLoss).toFixed(4));
   const errorRate = (errors.overcall + errors.overfold + errors.overbluff) / Math.max(1, decisions.length);
   const discipline = clamp(100 - errorRate * 100, 0, 100);
-  const hasSample = decisions.length > 0;
-  const rating = hasSample
+  const hasReliableSample = decisions.length >= MIN_RATING_DECISIONS;
+  const rating = hasReliableSample
     ? Math.round(clamp(avgScore * 0.72 + discipline * 0.18 + (scores.length && avgScore >= 80 ? 10 : 0), 0, 100))
     : null;
   const confidence = Math.round((1 - Math.exp(-decisions.length / 35)) * 100);
-  const grade = hasSample ? gradeFor(rating) : { grade: '—', label: '样本期' };
-  const weakStreet = Object.entries(street).filter(([, value]) => value.decisions > 0).sort((left, right) => left[1].averageScore - right[1].averageScore)[0]?.[0] || null;
+  const grade = hasReliableSample ? gradeFor(rating) : { grade: '—', label: '样本期' };
+  const weakStreet = Object.entries(street).filter(([, value]) => value.decisions >= MIN_STREET_DECISIONS && value.averageScore < WEAK_STREET_SCORE).sort((left, right) => left[1].averageScore - right[1].averageScore)[0]?.[0] || null;
   const leaks = [
     errors.overcall > 2 ? '过度跟注' : null,
     errors.overfold > 2 ? '过度弃牌' : null,

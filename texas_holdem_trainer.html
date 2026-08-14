@@ -34,7 +34,7 @@
 <script src="./strategy_pack.js"></script>
 <script>
 const R='23456789TJQKA',S=['♠','♥','♦','♣'];
-const $=id=>document.getElementById(id),pct=x=>Math.round(x*100)+'%',money=x=>Math.max(0,Math.round(x));
+const $=id=>document.getElementById(id),pct=x=>Math.round(x*100)+'%',money=x=>{const n=Number(x);if(!Number.isFinite(n))return '—';return Number.isInteger(n)?String(n):n.toFixed(2)};
 const BOT={solver:{name:'均衡型',pressure:.30,call:.52,bluff:.18,raise:.16},pressure:{name:'高压型',pressure:.46,call:.43,bluff:.28,raise:.25},sticky:{name:'薄价值型',pressure:.22,call:.68,bluff:.11,raise:.13},trapper:{name:'陷阱型',pressure:.25,call:.51,bluff:.14,raise:.30}};
 const BOT_KEYS=Object.keys(BOT),SEATS=['UTG','HJ','CO','BTN','SB','BB'];
 const SCEN={random:{name:'随机牌局',street:'preflop',difficulty:'普通'},adaptive:{name:'自适应难度',street:'preflop',difficulty:'动态'},btn3bet:{name:'BTN 对 BB 3bet 底池',street:'flop',difficulty:'困难',hero:['A♠','Q♠'],board:['J♦','7♠','2♣'],pot:24,toCall:12,pos:'BTN',villainPos:'BB',line:'BB 3bet 12'},turnbarrel:{name:'转牌高压二次开火',street:'turn',difficulty:'困难',hero:['K♠','Q♠'],board:['J♠','8♦','3♣','2♥'],pot:58,toCall:36,pos:'BB',villainPos:'BTN',line:'BTN 二次开火 36'},rivercatch:{name:'河牌 bluff-catch',street:'river',difficulty:'极难',hero:['A♥','Q♥'],board:['K♣','8♦','4♠','4♥','2♣'],pot:92,toCall:58,pos:'BB',villainPos:'BTN',line:'BTN 河牌下注 58'},monotone:{name:'单色面大底池',street:'flop',difficulty:'困难',hero:['A♠','K♦'],board:['Q♠','9♠','3♠'],pot:42,toCall:21,pos:'BB',villainPos:'BTN',line:'BTN 大额下注 21'},shortstack:{name:'短码有效筹码',street:'preflop',difficulty:'困难',hero:['9♠','9♦'],board:[],pot:9,toCall:14,pos:'BB',villainPos:'BTN',line:'BTN 开到 14',stack:54},squeeze:{name:'CO 面对 squeeze',street:'preflop',difficulty:'极难',hero:['A♦','J♦'],board:[],pot:31,toCall:18,pos:'CO',villainPos:'BTN',line:'BTN squeeze 到 18'},icm:{name:'近决赛桌 ICM 压力',street:'preflop',difficulty:'极难',hero:['K♣','Q♣'],board:[],pot:15,toCall:22,pos:'SB',villainPos:'CO',line:'CO 大额开局 22',stack:80,icmStacks:[80,60,120,45,35,100],icmPayouts:[0.5,0.3,0.2],icmHeroIndex:0},wetturn:{name:'湿润转牌大底池',street:'turn',difficulty:'极难',hero:['A♣','J♣'],board:['J♠','T♣','8♦','9♣'],pot:110,toCall:72,pos:'BB',villainPos:'BTN',line:'BTN 转牌大注 72'},overbet:{name:'河牌 overbet 防守',street:'river',difficulty:'极难',hero:['K♥','Q♥'],board:['K♣','9♦','5♠','5♣','2♥'],pot:120,toCall:150,pos:'BB',villainPos:'BTN',line:'BTN 河牌 overbet 150'}};
@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=29').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=33').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -239,7 +239,8 @@ window.parseImported=function(text){
   const legacyRecord=window.record;
   const legacyBotDecision=window.botDecision;
   const updateRangeForAction=typeof GTO_ENGINE.updateRangeByAction==='function'?GTO_ENGINE.updateRangeByAction:(range,{action='fold'}={})=>GTO_ENGINE.updateRange(range,action);
-  window.record=function(h,a,r){h.lastActionSize=r.sizeKey||((h.street==='preflop'&&a==='raise')?(h.toCall>0?'raise3':'open25'):a);return legacyRecord(h,a,r)};
+  const actionIsInFrequency=(action,result)=>action===result?.base||Number(result?.probability)>=.15;
+  window.record=function(h,a,r){h.lastActionSize=r.sizeKey||((h.street==='preflop'&&a==='raise')?(h.toCall>0?'raise3':'open25'):a);const value=legacyRecord(h,a,r);if(actionIsInFrequency(a,r)){if(a==='call'&&r.base!=='call')G.session.errors.overcall=Math.max(0,(G.session.errors.overcall||0)-1);if(a==='fold'&&r.base!=='fold')G.session.errors.overfold=Math.max(0,(G.session.errors.overfold||0)-1);if(['bet','raise','jam'].includes(a)&&!['bet','raise'].includes(r.base))G.session.errors.overbluff=Math.max(0,(G.session.errors.overbluff||0)-1)}return value};
   window.botDecision=function(h,context){const d=legacyBotDecision(h,context);h.lastBotActionSize=h.botActionKey||h.botBetSize||d;return d};
   window.updateObservedRange=function(h,actor,a,sizeKey){
     const key=actor==='hero'?'heroRange':'villainRange',actualSize=sizeKey||(actor==='hero'?h.lastActionSize:h.lastBotActionSize)||a;
@@ -819,7 +820,7 @@ renderHero();renderProfile();
 window.__POKER_TRAINER__={getRuntime:()=>({G,act:window.act,assess:window.assess})};
 </script>
 <script type="module">
- import * as CORE from './core/index.mjs?v=29';
+ import * as CORE from './core/index.mjs?v=33';
 
 window.POKER_CORE=CORE;
 window.POKER_CORE_STATUS='ready';
@@ -948,6 +949,14 @@ const coreStrategyResolver=({table,state,player})=>{
 };
 const coreSync=(hand)=>{
   const view=CORE.syncTrainingTable(hand.coreTable),state=hand.coreTable.state,actor=CORE.currentPlayer(hand.coreTable);
+  const heroId=hand.coreTable.heroId;
+  hand.actionLog=view.actionLog.filter(item=>!item.forced).map((item,index)=>({
+    ...item,
+    seq:index+1,
+    actor:item.playerId===heroId?'hero':'bot',
+    action:item.type,
+    amount:Number(item.paid||0),
+  }));
   const lastOpponentAction=[...state.actionLog].reverse().find(item=>!item.forced&&item.playerId!==hand.coreTable.heroId);
   const opponents=view.players.filter(player=>player.id!==hand.coreTable.heroId&&player.status!=='folded');
   const opponent=lastOpponentAction?view.players.find(player=>player.id===lastOpponentAction.playerId):null;
@@ -965,6 +974,10 @@ const coreSync=(hand)=>{
     hand.resultDetail=`${won?(split?'你平分部分底池':'你获得底池'):'对手获得底池'}；你获得 ${payout} BB；总投入 ${Number(view.actionLog.reduce((sum,item)=>sum+Number(item.paid||0),0)).toFixed(2)} BB。`;
   }
   hand.botName=displayedOpponent?.botStyle?({solver:'近似平衡型',pressure:'高压进攻型',sticky:'粘性跟注型',trapper:'陷阱型'}[displayedOpponent.botStyle]||'近似机器人'):'多路训练桌';
+  if(result){
+    const heroInvested=Number(view.actionLog.filter(item=>item.playerId===hand.coreTable.heroId).reduce((sum,item)=>sum+Number(item.paid||0),0)).toFixed(2),finalPot=Number(view.pot||0).toFixed(2);
+    hand.resultDetail=String(hand.resultDetail||'').replace(/\u603b\u6295\u5165[^\u3002]*\u3002/,`本手你投入 ${heroInvested} BB；最终底池 ${finalPot} BB。`);
+  }
   const equitySignature=`${state.status}|${state.street}|${state.board.join(',')}|${state.toAct}|${state.actionLog.length}`;
   if(actor?.id===hand.coreTable.heroId&&!hand.coreTable.ended&&hand.coreEquitySignature!==equitySignature){
     hand.coreEquity=CORE.estimateHeroEquity(hand.coreTable);
@@ -977,30 +990,34 @@ const coreSync=(hand)=>{
 const coreMakeHand=()=>{
   const scenarioKey=document.getElementById('scenario')?.value||'random',seed=coreSeed(),heroPosition=coreHeroPosition(seed),isICM=scenarioKey==='icm',table=CORE.createSixMaxTrainingTable({seed,heroPosition,stack:100,tournament:isICM?{payouts:[.5,.3,.2]}:undefined,strategyResolver:coreStrategyResolver});
   const icmStacks=isICM?table.state.players.map(player=>Number((player.stack+player.committedTotal).toFixed(2))):null,icmPayouts=isICM?[.5,.3,.2]:null,icmHeroIndex=isICM?table.state.players.findIndex(player=>player.id===table.heroId):null;
-  const hand={coreMode:true,coreTable:table,seed,scenario:scenarioKey,tableMode:'6max',pos:heroPosition,villainPos:'—',hero:[],villain:[],board:[],pot:0,toCall:0,heroStack:100,villainStack:100,street:'preflop',bot:'solver',botName:'多路训练桌',decisions:[],betSize:.5,coreBetFraction:.5,showVillain:false,line:'等待行动',icmStacks,icmPayouts,icmHeroIndex};
+  const hand={coreMode:true,coreTable:table,seed,scenario:scenarioKey,tableMode:'6max',pos:heroPosition,villainPos:'—',hero:[],villain:[],board:[],pot:0,toCall:0,heroStack:100,villainStack:100,street:'preflop',bot:'solver',botName:'多路训练桌',decisions:[],betSize:.5,coreBetPreset:'half',coreBetTarget:null,showVillain:false,line:'等待行动',icmStacks,icmPayouts,icmHeroIndex};
   const rt=runtime();rt.G.hand=hand;rt.G.done=false;window.initRanges?.(hand);coreSync(hand);return hand;
 };
 const coreActionTarget=(hand,actionType)=>{
-  const state=hand.coreTable.state,actor=CORE.heroPlayer(hand.coreTable),legal=CORE.legalHeroActions(hand.coreTable),action=legal.find(item=>item.type===actionType);
-  if(!action)return null;if(actionType==='all-in'||actionType==='call'||actionType==='check'||actionType==='fold')return actionType==='call'?undefined:undefined;
-  const fraction=hand.coreBetFraction==='all'?1.25:Number(hand.coreBetFraction||.5),base=state.currentBet>actor.streetContribution?state.currentBet:actor.streetContribution;
-  return Number(Math.max(action.minTo,Math.min(action.maxTo,(base+CORE.getPot(state)*fraction))).toFixed(2));
+  if(['all-in','call','check','fold'].includes(actionType))return undefined;
+  const model=CORE.buildBetModel({state:hand.coreTable.state,heroId:hand.coreTable.heroId,legalActions:CORE.legalHeroActions(hand.coreTable),selectedPreset:hand.coreBetPreset,selectedTarget:hand.coreBetTarget});
+  return model?.target;
 };
 window.renderActions=function(){
   const hand=runtime()?.G?.hand;if(!hand?.coreMode)return coreLegacyRenderActions();
+  document.querySelectorAll('.client-bet-rail').forEach(rail=>rail.remove());
   if(hand.coreTable.ended){$('sizeRow').innerHTML='';$('actions').innerHTML='<button class="call" id="nextBtn">下一手</button>';$('nextBtn').onclick=window.newHand;return}
-  const legal=CORE.legalHeroActions(hand.coreTable),types=new Set(legal.map(item=>item.type));
-  const sizes=[['.33','33%'],['.5','50%'],['.75','75%'],['1.25','125%'],['all','全押']];
-  $('sizeRow').innerHTML=sizes.map(item=>`<button class="${item[0]==='all'?(hand.coreBetFraction==='all'?'active':''):Number(item[0])===Number(hand.coreBetFraction)?'active':''}" data-core-size="${item[0]}">${item[1]}</button>`).join('');
-  $('sizeRow').querySelectorAll('button').forEach(button=>button.onclick=()=>{hand.coreBetFraction=button.dataset.coreSize==='all'?'all':Number(button.dataset.coreSize);window.renderActions()});
-  const choices=[];
-  if(types.has('fold'))choices.push(['fold','弃牌']);
-  if(types.has('check'))choices.push(['check','过牌']);
-  if(types.has('call'))choices.push(['call',`跟注 ${Number(CORE.getCallAmount(hand.coreTable.state,hand.coreTable.heroId)).toFixed(2)}`]);
-  const aggressive=legal.find(item=>item.type==='bet'||item.type==='raise');
-  if(aggressive)choices.push([aggressive.type,`${aggressive.type==='bet'?'下注':'加注'} 至 ${coreActionTarget(hand,aggressive.type)}`]);
-  if(types.has('all-in'))choices.push(['jam','全押']);
-  $('actions').innerHTML=choices.map(item=>`<button class="${item[0]==='fold'?'fold':item[0]==='call'||item[0]==='check'?'call':item[0]==='jam'?'jam':'raise'}" data-core-action="${item[0]}">${item[1]}</button>`).join('');
+  const legal=CORE.legalHeroActions(hand.coreTable);
+  const model=CORE.buildBetModel({state:hand.coreTable.state,heroId:hand.coreTable.heroId,legalActions:legal,selectedPreset:hand.coreBetPreset,selectedTarget:hand.coreBetTarget});
+  const controls=CORE.buildActionControls({legalActions:legal,betModel:model,ended:hand.coreTable.ended});
+  const row=$('sizeRow');
+  row.innerHTML=model?model.presets.map(item=>`<button class="${item.id===model.selectedPreset?'active':''}" data-core-preset="${item.id}">${item.label}<small>${CORE.formatChips(item.target)} BB</small></button>`).join(''):'';
+  row.querySelectorAll('button').forEach(button=>button.onclick=()=>{hand.coreBetPreset=button.dataset.corePreset;hand.coreBetTarget=null;window.renderActions()});
+  if(model){
+    const rail=document.createElement('div');rail.className='client-bet-rail';
+    rail.innerHTML=`<span class="bet-rail-label">${model.actionType==='bet'?'下注到':'加注到'}</span><button type="button" data-step="-1" aria-label="减少下注">−</button><input aria-label="精确下注尺度" type="range" min="${model.minTo}" max="${model.maxTo}" value="${model.target}" step="0.01"><button type="button" data-step="1" aria-label="增加下注">＋</button><output>${CORE.formatChips(model.target)} BB</output>`;
+    const input=rail.querySelector('input'),output=rail.querySelector('output');
+    const setTarget=value=>{const target=Math.max(model.minTo,Math.min(model.maxTo,Number(value)));hand.coreBetPreset='custom';hand.coreBetTarget=Number(target.toFixed(2));input.value=String(hand.coreBetTarget);output.textContent=`${CORE.formatChips(hand.coreBetTarget)} BB`;const button=$('actions')?.querySelector('[data-core-action="bet"],[data-core-action="raise"]');if(button)button.textContent=`${model.actionType==='bet'?'下注':'加注'}至 ${CORE.formatChips(hand.coreBetTarget)}`;};
+    input.oninput=event=>setTarget(event.target.value);
+    rail.querySelectorAll('[data-step]').forEach(button=>button.onclick=()=>setTarget(Number(input.value)+Number(button.dataset.step)*Math.max(.01,(model.maxTo-model.minTo)/100)));
+    row.insertAdjacentElement('afterend',rail);
+  }
+  $('actions').innerHTML=controls.map(item=>`<button class="${item.tone}" data-core-action="${item.type==='all-in'?'jam':item.type}">${item.label}</button>`).join('');
   $('actions').querySelectorAll('button').forEach(button=>button.onclick=()=>window.act(button.dataset.coreAction));
 };
 const renderPlayerProfile=()=>{
@@ -1024,7 +1041,7 @@ window.act=function(action){
   const equity=Number.isFinite(hand.coreEquity?.equity)?hand.coreEquity.equity:0.5,result=window.assess?.(hand,equity,action)||{base:action,score:null,error:'核心多路牌局已执行'};
   hand.lastEquity=equity;hand.score=result.score;hand.lastICM=result.icm||hand.lastICM||null;window.record?.(hand,action,result);window.showNode?.(hand,result,action);
   try{
-    CORE.applyHeroAction(hand.coreTable,{type:map,to:coreActionTarget(hand,map)});coreSync(hand);
+    CORE.applyHeroAction(hand.coreTable,{type:map,to:coreActionTarget(hand,map)});hand.coreBetPreset='half';hand.coreBetTarget=null;coreSync(hand);
     if(hand.coreTable.ended){rt.G.done=true;coreFinish(hand.result||'showdown');return}
     $('prompt').textContent=`${hand.villainPos||'桌上玩家'} 已行动；当前轮到你。`;
     window.render();
@@ -1171,6 +1188,103 @@ if(coreSixMaxMode())window.newHand();
     render();
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
+<script>
+(function(){
+  const style=document.createElement('style');
+  style.textContent=`
+    /* Acceptance repair: a true oval table with reserved header space. */
+    .table{isolation:isolate;min-height:620px;height:620px;border-radius:50% / 34%;padding:30px 34px;background:radial-gradient(ellipse at 50% 46%,#1b7162 0,#125047 48%,#092d2a 100%)}
+    .table:before{inset:18px;border-radius:50% / 34%}
+    .table-head{z-index:10;min-height:30px;padding:0 12px;gap:8px}
+    .seat-hj{top:17%}.seat-utg,.seat-co{top:30%}.board-block{top:42%}.table-meta{top:59%}
+    @media(max-width:600px){
+      .app{padding:8px 8px 24px}
+      .topbar{gap:11px;padding:12px;border-radius:14px}
+      .brand-kicker{font-size:9px;letter-spacing:1px}
+      .brand h1{font-size:21px;line-height:1.25}
+      .brand p{font-size:11px}
+      .brand{display:block!important}
+      .toolbar{width:100%;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important;justify-content:stretch!important}
+      .toolbar>*{min-width:0;width:100%;margin:0}
+      .toolbar #seedInput{grid-column:1/-1!important;width:100%!important}
+      .toolbar #scenario{grid-column:1/-1!important}
+      .toolbar #replayBtn,.toolbar #copySeedBtn,.toolbar #tableMode,.toolbar #newBtn,.toolbar .import-label,.toolbar #resetBtn{font-size:12px;padding:0 8px}
+      .toolbar #copySeedBtn{font-size:12px!important}
+      .toolbar #copySeedBtn:after{content:none!important}
+      .toolbar .primary{font-size:12px!important}
+      .toolbar .primary:after{content:none!important}
+      .toolbar .import-label{font-size:12px!important;justify-content:center}
+      .toolbar .import-label:after{content:none!important}
+      .table{height:650px;min-height:650px;padding:24px 10px;border-width:8px;border-radius:50% / 30%}
+      .table:before{inset:14px;border-radius:50% / 30%}
+      .table-head{padding:0 8px;font-size:11px}
+      .seat{width:108px;padding:8px 5px;font-size:10px}
+      .seat b{font-size:11px}
+      .seat-hj{left:50%;top:17%}.seat-utg{left:18%;top:30%}.seat-co{left:82%;top:30%}
+      .seat-btn{left:87%;top:69%}.seat-sb{left:65%;top:89%}.seat-bb{left:35%;top:89%}
+      .board-block{top:42%;width:86%}.table-meta{top:59%;width:92%;gap:8px;font-size:11px}
+      .table-meta strong{font-size:14px}.hero-block{bottom:24px}
+    }
+  `;
+  document.head.appendChild(style);
+  const labels={tableMode:'牌桌模式',scenario:'训练场景',seedInput:'可复现牌局种子'};
+  Object.entries(labels).forEach(([id,label])=>{const node=document.getElementById(id);if(node){node.setAttribute('aria-label',label);node.title=label}});
+})();
+</script>
+<script type="module">
+/* Phase 20: reference-led poker-room shell and unified responsive interaction. */
+(function(){
+  'use strict';
+  const style=document.createElement('style');
+  style.textContent=`
+    :root{--room-red:#c91d25;--room-red-deep:#891016;--room-black:#080a0c;--room-ink:#101318;--room-soft:#1b2027;--room-copy:#f7f8fa;--room-dim:#a7adb6}
+    html,body{min-height:100%;background:#111418!important}
+    body{overflow-x:hidden;background:radial-gradient(ellipse at 50% 15%,#31363d 0,#171a1f 44%,#0a0c0f 100%)!important}
+    .app{max-width:none!important;padding:0 16px 36px!important}
+    .topbar{position:sticky;top:0;z-index:80;height:64px;margin:0 -16px;padding:0 18px!important;border:0!important;border-radius:0!important;background:#050607!important;box-shadow:0 5px 22px #000b!important}
+    .brand{min-width:250px}.brand-kicker{display:none}.brand h1{margin:0!important;font-size:17px!important}.brand p{margin:1px 0 0!important;color:#8f969f!important;font-size:10px!important}
+    .room-nav{display:flex;align-items:center;gap:7px;margin-left:auto}.room-nav button{height:38px;min-width:58px;padding:0 12px;border:1px solid #3b4047;border-radius:20px;background:#111419;color:#f4f6f8;font:800 12px/1 inherit;cursor:pointer}.room-nav button:hover,.room-nav button[aria-expanded="true"]{border-color:#f24a50;background:#251316;color:#fff}.room-nav .room-new{border-color:#d73339;background:#b71820}
+    .room-status{display:flex;align-items:center;gap:7px;margin-right:8px;color:#c6cbd1;font-size:11px}.room-status:before{content:'';width:7px;height:7px;border-radius:50%;background:#58d49d;box-shadow:0 0 10px #58d49d}.room-status.done:before{background:#f0b84d;box-shadow:0 0 10px #f0b84d}
+    .toolbar{position:fixed;z-index:72;top:64px;right:16px;width:min(520px,calc(100vw - 32px));display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;padding:14px;border:1px solid #333942;border-top:0;border-radius:0 0 14px 14px;background:#11151beF;box-shadow:0 18px 45px #000b;transform:translateY(-125%);opacity:0;pointer-events:none;transition:.18s ease}
+    .room-settings-open .toolbar{transform:translateY(0);opacity:1;pointer-events:auto}.toolbar>*{width:100%!important;min-width:0!important;margin:0!important}.toolbar #seedInput,.toolbar #scenario{grid-column:1/-1!important}
+    .layout{display:block!important;max-width:1280px;margin:14px auto 0!important}.layout>section.panel{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}.layout>section.panel>.panel-title{height:24px;margin:0 6px 8px!important;color:#cfd3d8!important}.layout>section.panel>.panel-title:before{content:'现金桌 · 6-MAX';margin-right:auto;color:#fff;font-weight:900}.layout>section.panel>.panel-title::first-letter{font-size:0}
+    .layout>aside.decision-panel{position:fixed;z-index:90;top:76px;right:16px;bottom:16px;width:min(430px,calc(100vw - 32px));display:block!important;overflow:auto;padding:0;border:1px solid #3d444d;border-radius:16px;background:#0e1218;box-shadow:0 24px 70px #000d;transform:translateX(calc(100% + 30px));transition:.2s ease}.room-inspector-open .layout>aside.decision-panel{transform:translateX(0)}.decision-panel>.panel{border:0!important;border-bottom:1px solid #2a3038!important;border-radius:0!important;box-shadow:none!important}
+    .table{height:590px!important;min-height:590px!important;padding:0!important;overflow:visible!important;border:16px solid #101419!important;border-radius:50% / 39%!important;background:radial-gradient(ellipse at 50% 40%,#0878bd 0,#035b96 50%,#063b67 100%)!important;box-shadow:inset 0 0 0 4px #2c9bdd99,inset 0 -42px 74px #00192b99,0 0 0 8px #050709,0 18px 48px #000c!important;isolation:isolate}
+    .table:before{inset:10px!important;border:2px solid #5bb9ec66!important;border-radius:50% / 39%!important}.table:after{content:'';position:absolute;inset:4%;z-index:-1;border-radius:50%;background:radial-gradient(ellipse,#ffffff08,transparent 65%);pointer-events:none}
+    .table-head{position:absolute!important;top:6%!important;left:50%!important;right:auto!important;z-index:15!important;min-height:0!important;padding:5px 11px!important;border-radius:8px;background:#07090bbf;color:#fff!important;transform:translateX(-50%);font-size:11px!important}.table-head .badge{margin-left:8px;padding:2px 6px;border-color:#ffffff33;background:#11161b;color:#f0c869}
+    .seats{position:absolute!important;inset:0!important;z-index:7!important;display:block!important;margin:0!important}.seat{position:absolute!important;left:50%;top:50%;width:148px!important;min-height:52px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:0!important;border:0!important;border-radius:8px!important;background:transparent!important;box-shadow:none!important;transform:translate(-50%,-50%)}.seat.hero{display:none!important}.seat-avatar{width:48px!important;height:48px!important;display:grid!important;flex:none;place-items:center;border:2px solid #242a31;border-radius:50%!important;background:linear-gradient(145deg,#333941,#11151a)!important;color:#e8edf2;font-size:13px;box-shadow:0 5px 14px #000b}.seat-card{min-width:100px;padding:6px 9px!important;border:1px solid #30363d;border-radius:6px;background:#080a0ddd!important;box-shadow:0 4px 12px #000b;text-align:center}.seat-card b{display:flex!important;justify-content:center;gap:6px;margin:0!important;color:#e7e9ec!important;font-size:11px!important}.seat-pos{color:#f1c65f!important}.seat-meta{display:block;color:#fff!important;font-size:13px!important;font-weight:800}.seat-action{display:block;min-height:12px;color:#f6c767!important;font-size:9px!important}.seat.folded{opacity:.42!important}.seat.is-turn .seat-card{border-color:#e9f5ff;box-shadow:0 0 0 2px #55c8ff,0 5px 17px #000c}
+    .seat-hj{left:50%!important;top:14%!important}.seat-utg{left:13%!important;top:34%!important}.seat-co{left:87%!important;top:34%!important}.seat-btn{left:90%!important;top:64%!important}.seat-sb{left:72%!important;top:82%!important}.seat-bb{left:28%!important;top:82%!important}
+    .board-block{position:absolute!important;left:50%!important;top:39%!important;width:auto!important;z-index:9!important;transform:translateX(-50%)}.board-label,.hero-label{display:none!important}.cards{min-height:0!important;flex-wrap:nowrap!important;gap:5px!important}.card-face{width:58px!important;height:80px!important;padding:6px 7px!important;border:1px solid #d5d9de;border-radius:5px!important;background:#f7f8fa!important;box-shadow:0 5px 10px #0007!important;font-size:23px!important}
+    .table-meta{position:absolute!important;left:50%!important;top:56%!important;z-index:10!important;width:max-content!important;max-width:74%;display:flex!important;justify-content:center!important;gap:0!important;padding:5px 8px!important;border:1px solid #ffffff24;border-radius:7px;background:#07090bc9;color:#cfd4da!important;transform:translateX(-50%);font-size:10px!important}.table-meta span{padding:0 8px;border-right:1px solid #ffffff1f}.table-meta span:last-child{border:0}.table-meta strong{margin-left:3px;color:#fff!important;font-size:12px!important}
+    .hero-block{position:absolute!important;left:50%!important;top:auto!important;bottom:5%!important;z-index:12!important;transform:translateX(-50%)}.hero-block:after{content:'YOU';position:absolute;left:50%;bottom:-22px;padding:2px 12px;border-radius:4px;background:#080a0ddd;color:#fff;font-size:10px;font-weight:900;transform:translateX(-50%)}.hero-block .card-face{width:63px!important;height:86px!important;font-size:26px!important}
+    .table-actions{position:relative!important;z-index:20!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(300px,.8fr);grid-template-areas:'presets rail' 'actions actions' 'tip tip';gap:8px 12px;margin:10px 0 0!important;padding:10px!important;border:1px solid #30353c;border-radius:12px;background:#090b0eeF;box-shadow:0 12px 32px #0009}.size-row{grid-area:presets;display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px!important;margin:0!important}.size-row button{min-height:39px!important;padding:4px 8px!important;border-color:#6a1b20!important;border-radius:5px!important;background:#86141a!important;color:#fff!important;font-weight:850}.size-row button small{display:block;color:#f1b7ba;font-size:9px}.size-row button.active{border-color:#ff7a7f!important;background:#c31c24!important;color:#fff!important}.client-bet-rail{grid-area:rail;max-width:none!important;display:grid!important;grid-template-columns:auto 30px minmax(120px,1fr) 30px auto;align-items:center;gap:7px!important;margin:0!important;padding:0 7px!important;border:1px solid #333941;border-radius:6px;background:#171b21}.client-bet-rail button{height:28px;border:1px solid #4a5059;border-radius:4px;background:#282d35;color:#fff}.client-bet-rail input{width:100%;accent-color:#d1262d}.client-bet-rail output{min-width:62px;color:#fff;font-size:11px;font-weight:800}.bet-rail-label{color:#aeb4bc;font-size:10px;white-space:nowrap}.action-row{grid-area:actions;width:100%!important;max-width:none!important;display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:9px!important}.action-row button{min-height:58px!important;border:1px solid #ef4c52!important;border-radius:8px!important;background:linear-gradient(#d5242c,#a91118)!important;color:#fff!important;font-size:18px!important;font-weight:900!important;box-shadow:inset 0 1px #ff8d91,0 4px 10px #0009}.action-row button:hover{filter:brightness(1.12)}.tip{grid-area:tip;margin:0!important;padding:6px 9px!important;border:0!important;background:transparent!important;color:#8f969f!important;font-size:10px!important;text-align:center}
+    .table-actions:before{display:none!important}.analytics-room{display:none!important;max-width:1280px!important}.room-data-open .analytics-room{display:block!important}.update-launcher{display:none!important}.footer{max-width:1280px!important;margin:14px auto!important;text-align:center}
+    @media(max-width:700px){
+      body{padding-bottom:174px;background:#0a0b0d!important}.app{padding:0 7px 16px!important}.topbar{height:56px;margin:0 -7px;padding:0 9px!important}.brand{display:block!important;min-width:0}.brand h1{font-size:13px!important}.brand p{display:none}.room-status{display:none}.room-nav{gap:5px}.room-nav button{height:36px;min-width:0;padding:0 9px;border-radius:18px;font-size:10px}.room-nav [data-room-action="data"]{display:none}.toolbar{top:56px;right:7px;width:calc(100vw - 14px);grid-template-columns:repeat(2,minmax(0,1fr))!important}.layout{margin-top:7px!important}.layout>section.panel>.panel-title{display:none!important}
+      .layout>aside.decision-panel{top:62px;right:7px;bottom:7px;width:calc(100vw - 14px);border-radius:13px}.table{height:730px!important;min-height:730px!important;border-width:10px!important;border-radius:45% / 18%!important;background:radial-gradient(ellipse at 50% 45%,#12813e 0,#09652f 56%,#053c20 100%)!important;box-shadow:inset 0 0 0 3px #36ad5d66,inset 0 -60px 90px #001d0e99,0 0 0 5px #050607!important}.table:before{inset:7px!important;border-radius:45% / 18%!important;border-color:#75d88d44!important}.table-head{top:4%!important;max-width:82%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.table-head .badge{display:none}
+      .seat{width:104px!important;gap:3px!important;flex-direction:column!important}.seat-avatar{width:45px!important;height:45px!important}.seat-card{min-width:98px!important;padding:4px 6px!important}.seat-card b{font-size:9px!important}.seat-meta{font-size:11px!important}.seat-action{font-size:8px!important}.seat-hj{left:34%!important;top:15%!important}.seat-co{left:66%!important;top:15%!important}.seat-utg{left:15%!important;top:34%!important}.seat-btn{left:85%!important;top:34%!important}.seat-sb{left:18%!important;top:63%!important}.seat-bb{left:82%!important;top:63%!important}
+      .board-block{top:49%!important;width:96%!important}.board-block .cards{justify-content:center}.card-face{width:49px!important;height:70px!important;font-size:20px!important}.table-meta{top:43%!important;max-width:88%!important}.table-meta span{padding:0 5px}.table-meta .muted,.table-meta span:nth-child(2),.table-meta span:nth-child(3){display:none!important}.table-meta strong{font-size:13px!important}.hero-block{bottom:16%!important}.hero-block .card-face{width:59px!important;height:82px!important;font-size:25px!important}.hero-block:after{bottom:-19px}
+      .table-actions{position:fixed!important;left:0;right:0;bottom:0;z-index:75!important;grid-template-columns:1fr;grid-template-areas:'presets' 'rail' 'actions';gap:5px!important;margin:0!important;padding:7px 8px calc(7px + env(safe-area-inset-bottom))!important;border-width:1px 0 0!important;border-radius:0!important;background:#07090bf7!important}.size-row{grid-template-columns:repeat(4,1fr)}.size-row button{min-height:31px!important;padding:2px 4px!important;font-size:10px!important}.size-row button small{display:none}.client-bet-rail{min-height:31px;grid-template-columns:auto 26px minmax(80px,1fr) 26px auto}.client-bet-rail button{height:24px}.action-row{gap:6px!important}.action-row button{min-height:49px!important;border-radius:7px!important;font-size:15px!important}.tip{display:none!important}.analytics-room{margin-top:10px!important}.footer{display:none}.room-data-open .analytics-room{display:block!important}
+    }
+  `;
+  document.head.appendChild(style);
+  const topbar=document.querySelector('.topbar'),toolbar=document.querySelector('.toolbar'),aside=document.querySelector('.layout>aside');
+  aside?.classList.add('decision-panel');
+  if(topbar&&!document.querySelector('.room-nav')){
+    const status=document.createElement('span');status.className='room-status';status.id='roomStatus';status.textContent='等待行动';
+    const nav=document.createElement('nav');nav.className='room-nav';nav.setAttribute('aria-label','牌桌工具');nav.innerHTML='<button type="button" data-room-action="settings" aria-expanded="false">菜单</button><button type="button" class="room-new" data-room-action="new">新牌局</button><button type="button" data-room-action="review" aria-expanded="false">复盘</button><button type="button" data-room-action="data" aria-expanded="false">数据</button>';
+    topbar.insertBefore(status,toolbar);topbar.insertBefore(nav,toolbar);
+    nav.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;const action=button.dataset.roomAction;if(action==='new'){document.getElementById('newBtn')?.click();document.body.classList.remove('room-inspector-open');return}const map={settings:'room-settings-open',review:'room-inspector-open',data:'room-data-open'},name=map[action];if(!name)return;document.body.classList.toggle(name);button.setAttribute('aria-expanded',String(document.body.classList.contains(name)));if(action==='data'&&document.body.classList.contains(name))document.querySelector('.analytics-room')?.scrollIntoView({behavior:'smooth',block:'start'})});
+  }
+  const syncRoom=()=>{const runtime=window.__POKER_TRAINER__?.getRuntime?.(),hand=runtime?.G?.hand,status=document.getElementById('roomStatus');if(!status||!hand)return;const done=Boolean(hand.coreTable?.ended||runtime?.G?.done||hand.done),street=({preflop:'翻前',flop:'翻牌',turn:'转牌',river:'河牌'}[hand.street]||hand.street||'牌局');status.textContent=done?`${street} · 点击复盘`:`${street} · 轮到你`;status.classList.toggle('done',done)};
+  const syncDock=()=>{const dock=document.querySelector('.table-actions'),mobile=matchMedia('(max-width:700px)').matches;if(!dock)return;if(mobile)dock.style.setProperty('inset','auto 0 0 0','important');else dock.style.removeProperty('inset')};
+  const decorateSeats=()=>document.querySelectorAll('#seats .seat').forEach(seat=>{const pos=seat.querySelector('.seat-pos')?.textContent?.trim().toLowerCase();if(pos)seat.classList.add(`seat-${pos}`)});
+  const previousRender=window.render;window.render=function(){const value=previousRender?.apply(this,arguments);decorateSeats();syncRoom();syncDock();return value};
+  const previousFinish=window.finish;window.finish=function(){const value=previousFinish?.apply(this,arguments);document.body.classList.add('room-inspector-open');document.querySelector('[data-room-action="review"]')?.setAttribute('aria-expanded','true');syncRoom();return value};
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'){document.body.classList.remove('room-settings-open','room-inspector-open');document.querySelectorAll('.room-nav [aria-expanded]').forEach(button=>button.setAttribute('aria-expanded','false'))}});
+  addEventListener('resize',syncDock);decorateSeats();syncRoom();syncDock();window.render?.();
 })();
 </script>
 </body>

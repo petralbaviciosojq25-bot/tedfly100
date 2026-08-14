@@ -157,8 +157,15 @@ export function auditStrategyCoverage(packs = [], contexts = [], { trustedAudits
   };
 }
 
+function actionInFrequency(decision = {}) {
+  if (decision.action === decision.optimal) return true;
+  const probability = Number(decision.probability ?? decision.strategy?.[decision.action]);
+  return Number.isFinite(probability) && probability >= 0.15;
+}
+
 function actionError(decision = {}) {
   const error = String(decision.error || '');
+  if (actionInFrequency(decision) && !/overcall|overfold|overbluff|过度跟注|过度弃牌|过度诈唬/i.test(error)) return null;
   if (/overcall|过度跟注/i.test(error) || (decision.action === 'call' && decision.optimal && decision.optimal !== 'call')) return 'overcall';
   if (/overfold|过度弃牌/i.test(error) || (decision.action === 'fold' && decision.optimal && decision.optimal !== 'fold')) return 'overfold';
   if (/overbluff|过度诈唬/i.test(error) || (['bet', 'raise', 'jam'].includes(decision.action) && !['bet', 'raise'].includes(decision.optimal))) return 'overbluff';
@@ -201,7 +208,8 @@ export function deriveTrainingCurriculum(session = {}, { limit = 6 } = {}) {
   const targets = [...grouped.values()].map(value => {
     const averageScore = value.scored ? value.scoreTotal / value.scored : null;
     const errorTotal = Object.values(value.errors).reduce((sum, count) => sum + count, 0);
-    const dominantError = Object.entries(value.errors).sort((left, right) => right[1] - left[1])[0]?.[0] || null;
+    const [topError, topErrorCount] = Object.entries(value.errors).sort((left, right) => right[1] - left[1])[0] || [];
+    const dominantError = topErrorCount > 0 ? topError : null;
     const priority = Number(clamp((averageScore == null ? 25 : 100 - averageScore) + errorTotal * 12 + value.evLoss * 2 + (value.evidence.approximate > 0 ? 4 : 0), 0, 100).toFixed(2));
     const scenario = Object.entries(value.scenarios).sort((left, right) => right[1] - left[1])[0]?.[0] || value.context.scenario || null;
     return {
