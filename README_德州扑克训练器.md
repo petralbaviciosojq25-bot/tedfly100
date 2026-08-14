@@ -202,3 +202,14 @@ powershell -ExecutionPolicy Bypass -File .\启动联网服务.ps1
 - 新增 `phase18_strategy_audit_regression.mjs`，验证精确节点、未审核节点、未覆盖节点和课程排序。
 
 阶段十仍不等同于安装真实 CFR/GTO 求解器。只有外部求解器导出的数据经过独立审核、哈希登记并覆盖目标节点后，报告才会出现 `verified`；当前空审核登记表会继续把机器人和复盘标记为近似策略。
+
+## 第二十一阶段：历史统计迁移、缓存接管与无障碍回归
+
+- 新增 `core/session_stats.mjs`。页面启动、手牌历史导入和玩家画像刷新时，会从保存的 `history[].decisions[]` 重建总决策数、平均分、EV 损失、街道统计、VPIP/PFR、具体节点和漏洞计数；有行动/最优动作/频率证据时，旧的错误文字不会覆盖新的分类。
+- 对只有行动和得分、没有足够分类证据的极早期导入记录，系统保留原漏洞计数并不猜测新标签；后续产生带证据的决策后会自动进入重算管线。
+- Service Worker 升级到 v34，新增 `session_stats.mjs` 与 `table_presentation.mjs` 缓存资源，使用 `skipWaiting`、`clients.claim` 和一次性控制器切换刷新，减少首次打开仍显示旧缓存的情况。
+- Solver 覆盖率面板新增明确的“近似策略训练器”披露；0% 已审核覆盖率不会被解释为真实 GTO 结果，命中但未审核和未覆盖节点继续分开显示。
+- 增加键盘焦点可见样式、设置/复盘抽屉的 `aria-controls`、`aria-live`、区域语义、Esc 返回焦点和 Tab 边界处理；手机视口检查确认下注轨不重复、行动按钮不叠加、牌桌无横向溢出。
+- 新增 `phase21_regression.mjs`，验证旧标签重算、平均分与漏洞并存时的一致性、Service Worker 版本和可访问性标记。
+
+当前无真实 Solver 策略包时，覆盖率仍应显示为 0%，训练器继续以“可审计近似策略”运行，不能验收为真实 GTO Solver。

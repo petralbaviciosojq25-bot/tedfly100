@@ -1,5 +1,9 @@
-const CACHE='poker-trainer-v33';
-const CORE=['./','./index.html','./texas_holdem_trainer.html','./gto_engine.js','./strategy_pack.js','./core/index.mjs','./core/version.mjs','./core/cards.mjs','./core/table_state.mjs','./core/equity.mjs','./core/ev.mjs','./core/icm.mjs','./core/player_profile.mjs','./core/bot_profiles.mjs','./core/strategy_pack.mjs','./core/strategy_audit.mjs','./core/dealer.mjs','./core/training_table.mjs','./manifest.webmanifest','./icon.svg'];
+const CACHE='poker-trainer-v34';
+const CORE=['./','./index.html','./texas_holdem_trainer.html','./gto_engine.js','./strategy_pack.js','./core/index.mjs','./core/version.mjs','./core/cards.mjs','./core/table_state.mjs','./core/equity.mjs','./core/ev.mjs','./core/icm.mjs','./core/player_profile.mjs','./core/session_stats.mjs','./core/bot_profiles.mjs','./core/strategy_pack.mjs','./core/strategy_audit.mjs','./core/dealer.mjs','./core/training_table.mjs','./core/table_presentation.mjs','./manifest.webmanifest','./icon.svg'];
+
+self.addEventListener('message',event=>{
+  if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
+});
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));

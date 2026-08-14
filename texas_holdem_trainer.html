@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=33').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',async()=>{try{const version='34',registration=await navigator.serviceWorker.register(`./sw.js?v=${version}`,{updateViaCache:'none'}),reloadKey=`poker-trainer-sw-${version}-reloaded`;await registration.update();const reloadAfterClaim=()=>{if(sessionStorage.getItem(reloadKey))return;sessionStorage.setItem(reloadKey,'1');location.reload()};navigator.serviceWorker.addEventListener('controllerchange',reloadAfterClaim,{once:true});if(registration.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'})}catch(e){}})}
 </script>
 <script>
 (function(){
@@ -819,13 +819,27 @@ renderHero();renderProfile();
 <script>
 window.__POKER_TRAINER__={getRuntime:()=>({G,act:window.act,assess:window.assess})};
 </script>
-<script type="module">
- import * as CORE from './core/index.mjs?v=33';
+ <script type="module">
+  import * as CORE from './core/index.mjs?v=34';
 
 window.POKER_CORE=CORE;
 window.POKER_CORE_STATUS='ready';
 
-const runtime=()=>window.__POKER_TRAINER__?.getRuntime?.();
+ const runtime=()=>window.__POKER_TRAINER__?.getRuntime?.();
+ const sessionSignature=session=>JSON.stringify([session?.statsVersion,session?.history?.length,session?.history?.[0]?.id,session?.hands,session?.decisions,session?.total,session?.good,session?.evLoss,session?.vpip,session?.pfr,session?.actions,session?.streets,session?.errors,Object.keys(session?.spots||{}).length]);
+ const rebuildStoredSession=()=>{
+   const rt=runtime();
+   if(!rt?.G?.session||typeof CORE.rebuildSessionStats!=='function')return false;
+   const next=CORE.rebuildSessionStats(rt.G.session);
+   if(sessionSignature(next)===sessionSignature(rt.G.session))return false;
+   rt.G.session=next;
+   try{localStorage.setItem('pokerTrainerStats',JSON.stringify(next))}catch(e){}
+   return true;
+ };
+ window.rebuildTrainerSessionStats=rebuildStoredSession;
+ const legacyDashboard=window.renderDashboard;
+ if(typeof legacyDashboard==='function')window.renderDashboard=function(){rebuildStoredSession();return legacyDashboard.apply(this,arguments)};
+ rebuildStoredSession();
 const number=value=>Number.isFinite(Number(value))?Number(value):0;
 const plannedAmount=(hand,action)=>{
   if(action==='jam'||hand.betSize==='all')return number(hand.heroStack);
@@ -1010,7 +1024,7 @@ window.renderActions=function(){
   row.querySelectorAll('button').forEach(button=>button.onclick=()=>{hand.coreBetPreset=button.dataset.corePreset;hand.coreBetTarget=null;window.renderActions()});
   if(model){
     const rail=document.createElement('div');rail.className='client-bet-rail';
-    rail.innerHTML=`<span class="bet-rail-label">${model.actionType==='bet'?'下注到':'加注到'}</span><button type="button" data-step="-1" aria-label="减少下注">−</button><input aria-label="精确下注尺度" type="range" min="${model.minTo}" max="${model.maxTo}" value="${model.target}" step="0.01"><button type="button" data-step="1" aria-label="增加下注">＋</button><output>${CORE.formatChips(model.target)} BB</output>`;
+     rail.innerHTML=`<span class="bet-rail-label">${model.actionType==='bet'?'下注到':'加注到'}</span><button type="button" data-step="-1" aria-label="减少下注">−</button><input aria-label="精确下注尺度" type="range" min="${model.minTo}" max="${model.maxTo}" value="${model.target}" step="0.01"><button type="button" data-step="1" aria-label="增加下注">＋</button><output aria-live="polite">${CORE.formatChips(model.target)} BB</output>`;
     const input=rail.querySelector('input'),output=rail.querySelector('output');
     const setTarget=value=>{const target=Math.max(model.minTo,Math.min(model.maxTo,Number(value)));hand.coreBetPreset='custom';hand.coreBetTarget=Number(target.toFixed(2));input.value=String(hand.coreBetTarget);output.textContent=`${CORE.formatChips(hand.coreBetTarget)} BB`;const button=$('actions')?.querySelector('[data-core-action="bet"],[data-core-action="raise"]');if(button)button.textContent=`${model.actionType==='bet'?'下注':'加注'}至 ${CORE.formatChips(hand.coreBetTarget)}`;};
     input.oninput=event=>setTarget(event.target.value);
@@ -1276,7 +1290,7 @@ if(coreSixMaxMode())window.newHand();
     const status=document.createElement('span');status.className='room-status';status.id='roomStatus';status.textContent='等待行动';
     const nav=document.createElement('nav');nav.className='room-nav';nav.setAttribute('aria-label','牌桌工具');nav.innerHTML='<button type="button" data-room-action="settings" aria-expanded="false">菜单</button><button type="button" class="room-new" data-room-action="new">新牌局</button><button type="button" data-room-action="review" aria-expanded="false">复盘</button><button type="button" data-room-action="data" aria-expanded="false">数据</button>';
     topbar.insertBefore(status,toolbar);topbar.insertBefore(nav,toolbar);
-    nav.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;const action=button.dataset.roomAction;if(action==='new'){document.getElementById('newBtn')?.click();document.body.classList.remove('room-inspector-open');return}const map={settings:'room-settings-open',review:'room-inspector-open',data:'room-data-open'},name=map[action];if(!name)return;document.body.classList.toggle(name);button.setAttribute('aria-expanded',String(document.body.classList.contains(name)));if(action==='data'&&document.body.classList.contains(name))document.querySelector('.analytics-room')?.scrollIntoView({behavior:'smooth',block:'start'})});
+    nav.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;const action=button.dataset.roomAction;if(action==='new'){document.getElementById('newBtn')?.click();document.body.classList.remove('room-inspector-open');return}const map={settings:'room-settings-open',review:'room-inspector-open',data:'room-data-open'},name=map[action];if(!name)return;document.body.classList.toggle(name);const open=document.body.classList.contains(name);button.setAttribute('aria-expanded',String(open));if(action==='data'&&open)document.querySelector('.analytics-room')?.scrollIntoView({behavior:'smooth',block:'start'});if(open&&['settings','review'].includes(action))setTimeout(()=>document.querySelector(action==='settings'?'.toolbar input,.toolbar select,.toolbar button':'.layout>aside button,.layout>aside [href],.layout>aside [tabindex]')?.focus(),80)});
   }
   const syncRoom=()=>{const runtime=window.__POKER_TRAINER__?.getRuntime?.(),hand=runtime?.G?.hand,status=document.getElementById('roomStatus');if(!status||!hand)return;const done=Boolean(hand.coreTable?.ended||runtime?.G?.done||hand.done),street=({preflop:'翻前',flop:'翻牌',turn:'转牌',river:'河牌'}[hand.street]||hand.street||'牌局');status.textContent=done?`${street} · 点击复盘`:`${street} · 轮到你`;status.classList.toggle('done',done)};
   const syncDock=()=>{const dock=document.querySelector('.table-actions'),mobile=matchMedia('(max-width:700px)').matches;if(!dock)return;if(mobile)dock.style.setProperty('inset','auto 0 0 0','important');else dock.style.removeProperty('inset')};
@@ -1285,6 +1299,75 @@ if(coreSixMaxMode())window.newHand();
   const previousFinish=window.finish;window.finish=function(){const value=previousFinish?.apply(this,arguments);document.body.classList.add('room-inspector-open');document.querySelector('[data-room-action="review"]')?.setAttribute('aria-expanded','true');syncRoom();return value};
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){document.body.classList.remove('room-settings-open','room-inspector-open');document.querySelectorAll('.room-nav [aria-expanded]').forEach(button=>button.setAttribute('aria-expanded','false'))}});
   addEventListener('resize',syncDock);decorateSeats();syncRoom();syncDock();window.render?.();
+})();
+</script>
+<script>
+/* Phase 21: stale-stat migration disclosure and keyboard/a11y hardening. */
+(function(){
+  'use strict';
+  const init=()=>{
+    const nav=document.querySelector('.room-nav'),toolbar=document.querySelector('.toolbar'),aside=document.querySelector('.layout>aside'),table=document.querySelector('.table'),dock=document.querySelector('.table-actions');
+    if(!nav||!toolbar||!aside||!dock){setTimeout(init,30);return}
+    const style=document.createElement('style');
+    style.textContent=`
+      :focus-visible{outline:3px solid #8bdcff!important;outline-offset:3px!important;box-shadow:0 0 0 5px #06131dcc!important}
+      .solver-coverage-disclosure{margin-top:8px;padding:8px 9px;border:1px solid #705d2b;border-radius:8px;background:#211b0e;color:#f0d68c;font-size:10px;line-height:1.55}
+      .solver-coverage-disclosure b{color:#ffe7a7}
+      [aria-hidden="true"]{visibility:hidden}
+      @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+    `;
+    document.head.appendChild(style);
+    toolbar.id='trainerToolbar';toolbar.setAttribute('role','region');toolbar.setAttribute('aria-label','牌局设置');
+    aside.id='reviewDrawer';aside.setAttribute('role','dialog');aside.setAttribute('aria-modal','false');aside.setAttribute('aria-label','牌局复盘与决策信息');
+    table.setAttribute('role','region');table.setAttribute('aria-label','六人德州扑克牌桌');dock.setAttribute('role','group');dock.setAttribute('aria-label','下注与行动控制');
+    document.getElementById('prompt')?.setAttribute('aria-live','polite');document.getElementById('roomStatus')?.setAttribute('aria-live','polite');
+    nav.querySelector('[data-room-action="settings"]')?.setAttribute('aria-controls','trainerToolbar');
+    nav.querySelector('[data-room-action="review"]')?.setAttribute('aria-controls','reviewDrawer');
+    nav.querySelector('[data-room-action="data"]')?.setAttribute('aria-controls','analyticsRoom');
+    document.querySelector('.analytics-room')?.setAttribute('id','analyticsRoom');
+
+    const focusables=container=>[...container.querySelectorAll('button,input,select,textarea,[href],[tabindex]:not([tabindex="-1"])')].filter(node=>!node.disabled&&node.getClientRects().length>0&&getComputedStyle(node).visibility!=='hidden');
+    let restoreFocus=null;
+    const sync=({focus=false}={})=>{
+      const settingsOpen=document.body.classList.contains('room-settings-open'),reviewOpen=document.body.classList.contains('room-inspector-open');
+      toolbar.inert=!settingsOpen;aside.inert=!reviewOpen;
+      toolbar.setAttribute('aria-hidden',String(!settingsOpen));aside.setAttribute('aria-hidden',String(!reviewOpen));
+      const panel=reviewOpen?aside:settingsOpen?toolbar:null;
+      if(focus&&panel){const first=focusables(panel)[0];if(first)first.focus()}
+      if(!panel&&restoreFocus){restoreFocus.focus();restoreFocus=null}
+    };
+    nav.addEventListener('click',event=>{
+      const button=event.target.closest('[data-room-action]');if(!button)return;
+      restoreFocus=button;setTimeout(()=>sync({focus:['settings','review'].includes(button.dataset.roomAction)&&button.getAttribute('aria-expanded')==='true'}),0);
+    });
+    document.addEventListener('keydown',event=>{
+      const panel=document.body.classList.contains('room-inspector-open')?aside:document.body.classList.contains('room-settings-open')?toolbar:null;
+      if(event.key==='Escape'){document.body.classList.remove('room-settings-open','room-inspector-open');nav.querySelectorAll('[aria-expanded]').forEach(button=>button.setAttribute('aria-expanded','false'));sync();return}
+      if(event.key!=='Tab'||!panel)return;
+      const items=focusables(panel);if(!items.length)return;
+      const first=items[0],last=items[items.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
+    });
+    sync();
+
+    const renderCoverageDisclosure=()=>{
+      const panel=document.getElementById('solverCoverage');if(!panel)return;
+      const runtime=window.__POKER_TRAINER__?.getRuntime?.(),history=runtime?.G?.session?.history||[],rows=history.flatMap(hand=>hand.decisions||[]).filter(decision=>typeof decision.score==='number');
+      const total=rows.length,verified=rows.filter(decision=>decision.strategyEvidence?.status==='verified').length,unverified=rows.filter(decision=>decision.strategyEvidence?.status==='unverified').length,approximate=Math.max(0,total-verified-unverified),coverage=total?Math.round(verified/total*100):0;
+      panel.setAttribute('role','status');panel.setAttribute('aria-live','polite');panel.setAttribute('aria-label',`可审计 Solver 节点覆盖率 ${coverage}%，已审核 ${verified}，近似 ${approximate}`);panel.querySelectorAll('.solver-coverage-disclosure').forEach(node=>node.remove());
+      const message=verified>0?'部分节点已命中并通过可信审核；其余节点仍按近似策略处理。':'当前没有已通过可信审核的 Solver 节点，因此不能验收为真实 GTO Solver。';
+      panel.insertAdjacentHTML('beforeend',`<div class="solver-coverage-disclosure"><b>${verified>0?'部分覆盖':'近似策略训练器'}</b><br>${message} 覆盖率只统计“已审核命中 ÷ 已评分节点”，不是机器人自称的 GTO 百分比。</div>`);
+    };
+    const wrapRender=()=>{
+      if(window.__PHASE21_RENDER_WRAPPED)return;
+      const previous=window.render;if(typeof previous!=='function')return;
+      window.__PHASE21_RENDER_WRAPPED=true;window.render=function(){const value=previous.apply(this,arguments);renderCoverageDisclosure();sync();return value};
+      renderCoverageDisclosure();sync();
+    };
+    wrapRender();if(!window.__PHASE21_RENDER_WRAPPED)setTimeout(wrapRender,100);
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 </body>

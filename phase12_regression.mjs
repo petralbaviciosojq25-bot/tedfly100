@@ -11,8 +11,8 @@ assert.match(html,/开始本类训练/);
 assert.match(html,/\.analytics-dock/);
 assert.match(html,/\.table\{min-height:800px!important/);
 assert.match(html,/\.seat\.hero\{display:none!important\}/);
-assert.match(html,/register\('\.\/sw\.js\?v=33'\)/);
-assert.match(sw,/poker-trainer-v33/);
+assert.match(html,/serviceWorker\.register\(`\.\/sw\.js\?v=\$\{version\}`/);
+assert.match(sw,/poker-trainer-v34/);
 assert.match(sw,/core\/training_table\.mjs/);
 
 console.log('phase12 regression ok');

@@ -18,7 +18,8 @@
     "test:phase16": "node phase16_strategy_runtime_regression.mjs",
     "test:phase17": "node phase17_phase5_9_regression.mjs",
     "test:phase18": "node phase18_strategy_audit_regression.mjs",
-    "test": "npm run test:core && npm run test:phase6 && npm run test:phase7 && npm run test:phase9 && npm run test:phase10 && npm run test:phase11 && npm run test:phase12 && npm run test:phase13 && npm run test:phase14 && npm run test:phase15 && npm run test:phase16 && npm run test:phase17 && npm run test:phase18"
+    "test:phase21": "node phase21_regression.mjs",
+    "test": "npm run test:core && npm run test:phase6 && npm run test:phase7 && npm run test:phase9 && npm run test:phase10 && npm run test:phase11 && npm run test:phase12 && npm run test:phase13 && npm run test:phase14 && npm run test:phase15 && npm run test:phase16 && npm run test:phase17 && npm run test:phase18 && npm run test:phase21"
   },
   "engines": {
     "node": ">=18"
