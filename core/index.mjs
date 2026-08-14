@@ -5,6 +5,7 @@ export * from './equity.mjs';
 export * from './ev.mjs';
 export * from './icm.mjs';
 export * from './player_profile.mjs';
+export * from './session_stats.mjs';
 export * from './bot_profiles.mjs';
 export * from './strategy_pack.mjs';
 export * from './strategy_audit.mjs';

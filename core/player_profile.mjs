@@ -1,4 +1,5 @@
 import { PROFILE_VERSION } from './version.mjs';
+import { rebuildSessionStats } from './session_stats.mjs';
 
 const STREET_ORDER = ['preflop', 'flop', 'turn', 'river'];
 const MIN_RATING_DECISIONS = 30;
@@ -21,8 +22,9 @@ function gradeFor(rating) {
 
 /** Produces a sample-aware player rating; it is a training estimate, not a bankroll result. */
 export function summarizePlayerProfile(session = {}) {
-  const decisions = decisionsFromSession(session);
-  const hands = Number(session.hands || session.history?.length || 0);
+  const normalized = rebuildSessionStats(session);
+  const decisions = decisionsFromSession(normalized);
+  const hands = Number(normalized.hands || normalized.history?.length || 0);
   const scores = decisions.map(item => Number(item.score)).filter(Number.isFinite);
   const evLoss = decisions.map(item => Number(item.evLoss)).filter(Number.isFinite);
   const street = Object.fromEntries(STREET_ORDER.map(key => {
@@ -31,9 +33,9 @@ export function summarizePlayerProfile(session = {}) {
   }));
   const actions = decisions.reduce((counts, item) => { counts[item.action] = (counts[item.action] || 0) + 1; return counts; }, {});
   const errors = {
-    overcall: Number(session.errors?.overcall || 0),
-    overfold: Number(session.errors?.overfold || 0),
-    overbluff: Number(session.errors?.overbluff || 0),
+    overcall: Number(normalized.errors?.overcall || 0),
+    overfold: Number(normalized.errors?.overfold || 0),
+    overbluff: Number(normalized.errors?.overbluff || 0),
   };
   const avgScore = Number(mean(scores).toFixed(2));
   const averageEVLoss = Number(mean(evLoss).toFixed(4));
