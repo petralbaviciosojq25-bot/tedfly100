@@ -213,13 +213,24 @@ function updateRaiseRights(state, actor, previousBet, newBet, fullRaise) {
   }
 }
 
+function actionSnapshot(state, playerId) {
+  return {
+    street: state.street,
+    board: [...state.board],
+    pot: totalPot(state),
+    toCall: getCallAmount(state, playerId),
+    stacks: Object.fromEntries(state.players.map(item => [item.id, Number(item.stack.toFixed(2))])),
+  };
+}
+
 export function act(state, { playerId, type, to } = {}) {
   const actor = requireTurn(state, playerId);
   const legal = getLegalActions(state, playerId);
   const allowed = legal.find(item => item.type === type);
   if (!allowed) throw new RuleError('ILLEGAL_ACTION', `${type} is not legal for ${playerId}`, { legal });
   const actorIndex = state.players.indexOf(actor);
-  const before = { pot: state.pot, currentBet: state.currentBet, stack: actor.stack, streetContribution: actor.streetContribution };
+  const actionStreet = state.street;
+  const before = { ...actionSnapshot(state, playerId), currentBet: state.currentBet, stack: actor.stack, streetContribution: actor.streetContribution };
   let target = actor.streetContribution;
   let paid = 0;
   let fullRaise = false;
@@ -256,8 +267,25 @@ export function act(state, { playerId, type, to } = {}) {
     updateRaiseRights(state, actor, previousBet, target, fullRaise);
   }
   state.pot = totalPot(state);
-  state.actionLog.push({ street: state.street, playerId, type, paid, to: actor.streetContribution, currentBet: state.currentBet, fullRaise });
   finishOrContinue(state, actorIndex);
+  const after = actionSnapshot(state, playerId);
+  state.actionLog.push({
+    street: actionStreet,
+    playerId,
+    type,
+    paid,
+    to: actor.streetContribution,
+    currentBet: state.currentBet,
+    fullRaise,
+    potBefore: before.pot,
+    potAfter: after.pot,
+    toCallBefore: before.toCall,
+    toCallAfter: after.toCall,
+    boardBefore: before.board,
+    boardAfter: after.board,
+    stacksBefore: before.stacks,
+    stacksAfter: after.stacks,
+  });
   return state;
 }
 
