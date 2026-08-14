@@ -37,7 +37,7 @@ const R='23456789TJQKA',S=['♠','♥','♦','♣'];
 const $=id=>document.getElementById(id),pct=x=>Math.round(x*100)+'%',money=x=>Math.max(0,Math.round(x));
 const BOT={solver:{name:'均衡型',pressure:.30,call:.52,bluff:.18,raise:.16},pressure:{name:'高压型',pressure:.46,call:.43,bluff:.28,raise:.25},sticky:{name:'薄价值型',pressure:.22,call:.68,bluff:.11,raise:.13},trapper:{name:'陷阱型',pressure:.25,call:.51,bluff:.14,raise:.30}};
 const BOT_KEYS=Object.keys(BOT),SEATS=['UTG','HJ','CO','BTN','SB','BB'];
-const SCEN={random:{name:'随机牌局',street:'preflop',difficulty:'普通'},adaptive:{name:'自适应难度',street:'preflop',difficulty:'动态'},btn3bet:{name:'BTN 对 BB 3bet 底池',street:'flop',difficulty:'困难',hero:['A♠','Q♠'],board:['J♦','7♠','2♣'],pot:24,toCall:12,pos:'BTN',villainPos:'BB',line:'BB 3bet 12'},turnbarrel:{name:'转牌高压二次开火',street:'turn',difficulty:'困难',hero:['K♠','Q♠'],board:['J♠','8♦','3♣','2♥'],pot:58,toCall:36,pos:'BB',villainPos:'BTN',line:'BTN 二次开火 36'},rivercatch:{name:'河牌 bluff-catch',street:'river',difficulty:'极难',hero:['A♥','Q♥'],board:['K♣','8♦','4♠','4♥','2♣'],pot:92,toCall:58,pos:'BB',villainPos:'BTN',line:'BTN 河牌下注 58'},monotone:{name:'单色面大底池',street:'flop',difficulty:'困难',hero:['A♠','K♦'],board:['Q♠','9♠','3♠'],pot:42,toCall:21,pos:'BB',villainPos:'BTN',line:'BTN 大额下注 21'},shortstack:{name:'短码有效筹码',street:'preflop',difficulty:'困难',hero:['9♠','9♦'],board:[],pot:9,toCall:14,pos:'BB',villainPos:'BTN',line:'BTN 开到 14',stack:54},squeeze:{name:'CO 面对 squeeze',street:'preflop',difficulty:'极难',hero:['A♦','J♦'],board:[],pot:31,toCall:18,pos:'CO',villainPos:'BTN',line:'BTN squeeze 到 18'},icm:{name:'近决赛桌 ICM 压力',street:'preflop',difficulty:'极难',hero:['K♣','Q♣'],board:[],pot:15,toCall:22,pos:'SB',villainPos:'CO',line:'CO 大额开局 22',stack:80},wetturn:{name:'湿润转牌大底池',street:'turn',difficulty:'极难',hero:['A♣','J♣'],board:['J♠','T♣','8♦','9♣'],pot:110,toCall:72,pos:'BB',villainPos:'BTN',line:'BTN 转牌大注 72'},overbet:{name:'河牌 overbet 防守',street:'river',difficulty:'极难',hero:['K♥','Q♥'],board:['K♣','9♦','5♠','5♣','2♥'],pot:120,toCall:150,pos:'BB',villainPos:'BTN',line:'BTN 河牌 overbet 150'}};
+const SCEN={random:{name:'随机牌局',street:'preflop',difficulty:'普通'},adaptive:{name:'自适应难度',street:'preflop',difficulty:'动态'},btn3bet:{name:'BTN 对 BB 3bet 底池',street:'flop',difficulty:'困难',hero:['A♠','Q♠'],board:['J♦','7♠','2♣'],pot:24,toCall:12,pos:'BTN',villainPos:'BB',line:'BB 3bet 12'},turnbarrel:{name:'转牌高压二次开火',street:'turn',difficulty:'困难',hero:['K♠','Q♠'],board:['J♠','8♦','3♣','2♥'],pot:58,toCall:36,pos:'BB',villainPos:'BTN',line:'BTN 二次开火 36'},rivercatch:{name:'河牌 bluff-catch',street:'river',difficulty:'极难',hero:['A♥','Q♥'],board:['K♣','8♦','4♠','4♥','2♣'],pot:92,toCall:58,pos:'BB',villainPos:'BTN',line:'BTN 河牌下注 58'},monotone:{name:'单色面大底池',street:'flop',difficulty:'困难',hero:['A♠','K♦'],board:['Q♠','9♠','3♠'],pot:42,toCall:21,pos:'BB',villainPos:'BTN',line:'BTN 大额下注 21'},shortstack:{name:'短码有效筹码',street:'preflop',difficulty:'困难',hero:['9♠','9♦'],board:[],pot:9,toCall:14,pos:'BB',villainPos:'BTN',line:'BTN 开到 14',stack:54},squeeze:{name:'CO 面对 squeeze',street:'preflop',difficulty:'极难',hero:['A♦','J♦'],board:[],pot:31,toCall:18,pos:'CO',villainPos:'BTN',line:'BTN squeeze 到 18'},icm:{name:'近决赛桌 ICM 压力',street:'preflop',difficulty:'极难',hero:['K♣','Q♣'],board:[],pot:15,toCall:22,pos:'SB',villainPos:'CO',line:'CO 大额开局 22',stack:80,icmStacks:[80,60,120,45,35,100],icmPayouts:[0.5,0.3,0.2],icmHeroIndex:0},wetturn:{name:'湿润转牌大底池',street:'turn',difficulty:'极难',hero:['A♣','J♣'],board:['J♠','T♣','8♦','9♣'],pot:110,toCall:72,pos:'BB',villainPos:'BTN',line:'BTN 转牌大注 72'},overbet:{name:'河牌 overbet 防守',street:'river',difficulty:'极难',hero:['K♥','Q♥'],board:['K♣','9♦','5♠','5♣','2♥'],pot:120,toCall:150,pos:'BB',villainPos:'BTN',line:'BTN 河牌 overbet 150'}};
 let G={hand:null,done:false,session:null,online:{packs:[],bots:[],models:[],server:false}};
 const API_BASE=typeof location!=='undefined'&&(location.protocol!=='file:'&&location.origin!=='null')?location.origin:'http://localhost:8787';
 function spotKey(h){return[h.street,h.pos,texture(h.board),h.toCall>0?'facing':'no-pressure'].join('|')}function spotLabel(key){let x=String(key).split('|');return`${{preflop:'翻前',flop:'翻牌',turn:'转牌',river:'河牌'}[x[0]]||x[0]} · ${x[1]||'—'} · ${x[2]||'—'} · ${x[3]==='facing'?'面对下注':'无压力'}`}
@@ -50,7 +50,7 @@ function cmp(a,b){for(let i=0;i<Math.max(a.length,b.length);i++)if((a[i]||0)!==(
 function equity(hero,board){let used=new Set([...hero,...board]),rem=deck().filter(c=>!used.has(c)),w=0,t=0,n=420;for(let i=0;i<n;i++){let x=sample(rem,7-board.length),v=x.slice(0,2),run=[...board,...x.slice(2)],q=cmp(evaluate([...hero,...run]),evaluate([...v,...run]));if(q>0)w++;else if(q===0)t++}return(w+t/2)/n}
 function combosForCode(code,excluded){let out=[],d=deck().filter(c=>!excluded.has(c));for(let i=0;i<d.length;i++)for(let j=i+1;j<d.length;j++)if(handCode([d[i],d[j]])===code)out.push([d[i],d[j]]);return out}
 function weightedRangeEquity(hero,board,range){if(!range?.length)return equity(hero,board);let excluded=new Set([...hero,...board]),candidates=[];for(const item of range){let combos=combosForCode(item.hand,excluded);for(const cards of combos)candidates.push({cards,weight:Math.max(.0001,item.weight)/Math.max(1,combos.length)})}let total=candidates.reduce((s,x)=>s+x.weight,0);if(!total)return equity(hero,board);let w=0,t=0,n=180;for(let i=0;i<n;i++){let pick=Math.random()*total,villain=candidates[candidates.length-1].cards;for(const item of candidates){pick-=item.weight;if(pick<=0){villain=item.cards;break}}let used=new Set([...excluded,...villain]),rem=deck().filter(c=>!used.has(c)),run=[...board,...sample(rem,5-board.length)],q=cmp(evaluate([...hero,...run]),evaluate([...villain,...run]));if(q>0)w++;else if(q===0)t++}return(w+t/2)/n}
-function texture(b){if(!b.length)return'—';let suited=b.some(c=>b.filter(x=>suit(x)===suit(c)).length>=3),rs=b.map(rank).sort((a,z)=>z-a);return suited?'单色/同花听牌':rs.length>1&&rs[0]-rs[rs.length-1]<=5?'连接面/顺子听牌':'干燥面'}function pretty(c){return`<div class="card-face ${suit(c)==='♥'||suit(c)==='♦'?'red':''}"><span>${c[0]}</span><span>${c[1]}</span></div>`}
+function cardSuitSymbol(c){return({s:'♠',h:'♥',d:'♦',c:'♣','♠':'♠','♥':'♥','♦':'♦','♣':'♣'}[String(c||'').trim().slice(-1)]||String(c||'').trim().slice(-1))}function texture(b){if(!b.length)return'—';let suited=b.some(c=>b.filter(x=>suit(x)===suit(c)).length>=3),rs=b.map(rank).sort((a,z)=>z-a);return suited?'单色/同花听牌':rs.length>1&&rs[0]-rs[rs.length-1]<=5?'连接面/顺子听牌':'干燥面'}function pretty(c){let symbol=cardSuitSymbol(c);return`<div class="card-face ${symbol==='♥'||symbol==='♦'?'red':''}"><span>${c[0]}</span><span>${symbol}</span></div>`}
 function handCode(cs){return GTO_ENGINE.handCode(cs)}function rangeRank(code){return GTO_ENGINE.rankScore(code)}const OPEN_LIMIT=GTO_ENGINE.openLimit,DEFEND_LIMIT=GTO_ENGINE.defendLimit;function rangeClass(code,pos){let s=GTO_ENGINE.strategyFor({hand:code,pos,facing:false});return s.raise>=.5?'raise':s.call>=.2?'call':'fold'}function preflopPlan(h){let s=GTO_ENGINE.strategyFor({hand:h.hero,pos:h.pos,facing:h.toCall>0});return s.raise>=.5?'raise':s.call>=.2?'call':'fold'}
 function renderRange(){let grid=$('rangeGrid'),pos=G.hand?.pos||'BTN';if(!grid)return;grid.innerHTML='';for(let i=12;i>=0;i--)for(let j=0;j<13;j++){let code=i===j?R[i]+R[j]:i>j?R[i]+R[j]+'s':R[j]+R[i]+'o',b=document.createElement('button');b.className=rangeClass(code,pos);b.textContent=code;grid.appendChild(b)}$('rangeHint').textContent=`${pos} 位置范围 · 当前手牌 ${handCode(G.hand.hero)} 建议：${preflopPlan(G.hand)}`}
 function onlineLog(message){let el=$('updateLog');if(el)el.textContent=`[${new Date().toLocaleTimeString()}] ${message}\n`+el.textContent}
@@ -68,7 +68,7 @@ function rangeAction(a){return['bet','raise','jam'].includes(a)?'raise':a==='che
 function updateObservedRange(h,actor,a){let key=actor==='hero'?'heroRange':'villainRange';if(h[key])h[key]=GTO_ENGINE.updateRange(h[key],rangeAction(a));h.rangeHistory.push({street:h.street,actor,action:a,top:GTO_ENGINE.topRange(h[key],3).map(x=>x.hand)})}
 function strategyText(s){return['check','bet','raise','call','fold'].filter(a=>s?.[a]!=null).map(a=>`${a} ${Math.round((s[a]||0)*100)}%`).join(' · ')}function treeActionLabel(a){if(a==='check')return'过牌';if(a==='fold')return'弃牌';if(a==='call')return'跟注';if(a==='jam')return'全押';if(/^bet\d+$/.test(a))return`下注 ${a.slice(3)}%`;if(/^raise\d+$/.test(a))return`加注 ${a.slice(5)}%`;return a}function actionTreeText(t){if(!t)return'';return(t.actionKeys||[]).filter(a=>t[a]>0).map(a=>`${treeActionLabel(a)} ${Math.round((t[a]||0)*100)}%`).join(' · ')}function sizeTreeText(s){return actionTreeText(s?.sizeTree)}function sizeLabel(h){return h.betSize==='all'?'全押':`${Math.round(Number(h.betSize||.5)*100)}%底池`}
 function makeSeats(h){let pos=$('tableMode').value==='6max'?SEATS:['BTN','BB'],hero=h.pos||'BTN';h.seats=pos.map((p,i)=>{if(p===hero)return{pos:p,name:'你',status:'hero'};let k=BOT_KEYS[(i+BOT_KEYS.indexOf(h.bot||'solver'))%BOT_KEYS.length];return{pos:p,name:'对手',bot:k,status:'in',stack:h.heroStack||100}});h.activeSeat=h.seats.find(s=>s.pos===h.villainPos)||h.seats.find(s=>s.status==='in');h.bot=h.activeSeat?.bot||h.bot||'solver';h.botName=BOT[h.bot].name}
-function makeGame(){let selected=$('scenario').value,key=selected==='adaptive'?chooseAdaptive():selected,sc=SCEN[key],mode=$('tableMode').value;if(key!=='random'){let h={...sc,hero:[...sc.hero],board:[...sc.board],pot:sc.pot,toCall:sc.toCall,street:sc.street,heroStack:sc.stack||100,villainStack:sc.stack||100,scenario:key,tableMode:mode,pos:sc.pos||'BTN',villainPos:sc.villainPos||'BB',bot:'solver',decisions:[],betSize:.5};makeSeats(h);initRanges(h);return h}let pos=mode==='6max'?SEATS[Math.floor(Math.random()*6)]:(Math.random()<.5?'BTN':'BB'),d=sample(deck(),20),stack=[80,100,150,220][Math.floor(Math.random()*4)],firstAction=pos==='BTN'||pos==='CO',vp=pos==='BTN'?'BB':mode==='6max'?SEATS[(SEATS.indexOf(pos)+5)%6]:'BTN',open=Math.round(4+Math.random()*5),h={hero:d.slice(0,2),villain:d.slice(2,4),board:[],pot:firstAction?(pos==='BTN'?3:4):4,toCall:firstAction?0:open,heroStack:stack,villainStack:stack,street:'preflop',scenario:key,tableMode:mode,pos,villainPos:vp,bot:'solver',decisions:[],line:firstAction?'你首先行动':vp+' 开到 '+open,betSize:.5};makeSeats(h);initRanges(h);return h}
+function makeGame(){let selected=$('scenario').value,key=selected==='adaptive'?chooseAdaptive():selected,sc=SCEN[key],mode=$('tableMode').value;if(key!=='random'){let h={...sc,hero:[...sc.hero],board:[...sc.board],pot:sc.pot,toCall:sc.toCall,street:sc.street,heroStack:sc.stack||100,villainStack:sc.stack||100,heroStreetContribution:0,villainStreetContribution:Number(sc.toCall||0),lastFullRaise:Number(sc.toCall||2),scenario:key,tableMode:mode,pos:sc.pos||'BTN',villainPos:sc.villainPos||'BB',bot:'solver',decisions:[],betSize:.5};makeSeats(h);initRanges(h);return h}let pos=mode==='6max'?SEATS[Math.floor(Math.random()*6)]:(Math.random()<.5?'BTN':'BB'),d=sample(deck(),20),stack=[80,100,150,220][Math.floor(Math.random()*4)],firstAction=pos==='BTN'||pos==='CO',vp=pos==='BTN'?'BB':mode==='6max'?SEATS[(SEATS.indexOf(pos)+5)%6]:'BTN',open=Math.round(4+Math.random()*5),h={hero:d.slice(0,2),villain:d.slice(2,4),board:[],pot:firstAction?(pos==='BTN'?3:4):4,toCall:firstAction?0:open,heroStack:stack,villainStack:stack,heroStreetContribution:0,villainStreetContribution:firstAction?0:open,lastFullRaise:firstAction?2:open,street:'preflop',scenario:key,tableMode:mode,pos,villainPos:vp,bot:'solver',decisions:[],line:firstAction?'你首先行动':vp+' 开到 '+open,betSize:.5};makeSeats(h);initRanges(h);return h}
 function deal(h){let used=new Set([...h.hero,...h.board]),rem=shuffle(deck().filter(c=>!used.has(c)));if(h.seats){h.seats.forEach(s=>{if(s.status!=='hero')s.cards=rem.splice(0,2)});h.activeSeat=h.seats.find(s=>s.pos===h.villainPos)||h.seats.find(s=>s.status==='in');h.villain=h.activeSeat.cards}else if(!h.villain)h.villain=rem.splice(0,2);h.deck=rem}
 function labelStreet(s){return{preflop:'翻牌前',flop:'翻牌圈',turn:'转牌圈',river:'河牌圈'}[s]}
 function renderSeats(){let h=G.hand;$('seats').innerHTML=h.seats.map(s=>{let name=s.status==='hero'?'你':h.showVillain?BOT[s.bot].name:'对手',meta=s.status==='hero'?`${money(h.heroStack)}筹码`:(s.status==='folded'?'已弃牌':'未知类型');return`<div class="seat ${s.status==='hero'?'hero':''} ${s.status==='folded'?'folded':''} ${h.showVillain&&s.status!=='hero'?'reveal':''}"><b>${s.pos} · ${name}</b><span class="seat-meta">${meta}</span></div>`}).join('')}
@@ -77,10 +77,10 @@ function renderActions(){let h=G.hand;if(G.done){$('sizeRow').innerHTML='';$('ac
 function remoteAdvice(h){let items=G.online.strategy?.items||[];return items.find(x=>x.verified===true&&(x.street===h.street||x.street==='any')&&(!x.position||x.position===h.pos))||null}
 function baseline(h,e){let remote=remoteAdvice(h);if(remote?.action&&['fold','call','check','bet','raise'].includes(remote.action))return remote.action;if(h.street==='preflop'){let p=preflopPlan(h);return p==='raise'?(h.toCall?'raise':'bet'):p}let odds=h.toCall?h.toCall/(h.pot+h.toCall):0,draw=h.board.length&&texture(h.board)!=='干燥面';if(h.toCall){if(e<odds-.06)return'fold';if(e>.64||draw&&e>odds+.04)return'raise';return'call'}return e>.62||draw?'bet':'check'}
 function assess(h,e,a){let remote=remoteAdvice(h),pre=h.street==='preflop',made=h.board.length>=3?evaluate([...h.hero,...h.board])[0][0]:0,draw=h.board.length>0&&texture(h.board)!=='干燥面',facing=h.toCall>0,strategy=pre?GTO_ENGINE.strategyFor({hand:h.hero,pos:h.pos,facing}):GTO_ENGINE.postflopStrategy({equity:e,pot:h.pot,toCall:h.toCall,street:h.street,pos:h.pos,madeStrength:made,draw,betFraction:h.betSize==='all'?1.25:Number(h.betSize||.5),stack:h.heroStack,bot:h.bot}),key=rangeAction(a),tree=!pre?(facing?strategy.defenseTree:strategy.sizeTree):null,sizeKey=tree?(facing&&['raise','jam'].includes(a)?(a==='jam'||h.betSize==='all'?'jam':GTO_ENGINE.raiseSizeKey(Number(h.betSize||.5),false)):(!facing&&['bet','raise','jam'].includes(a)?(a==='jam'||h.betSize==='all'?'jam':GTO_ENGINE.sizeKey(Number(h.betSize||.5),false)):key)):key,actionKeys=strategy.actionKeys||['raise','call','fold'],base=tree?tree.bestAction:actionKeys.slice().sort((x,y)=>(strategy[y]||0)-(strategy[x]||0))[0],prob=tree?.[sizeKey]??strategy[key]??0,score=prob>=.15?Math.round(78+prob*22):Math.round(prob*100),error='当前行动与牌面、赔率和范围主线基本匹配。';if(strategy){error=`${pre?'翻前':'翻后'}策略基准：${strategyText(strategy)}${tree?`；行动尺寸树：${actionTreeText(tree)}`:''}。你的行动属于${prob>=.15?'策略频率内':'低频或不在当前基准范围内'}；混合策略不应被当成单一固定答案。`}if(a==='call'&&e<.28&&!pre){error='过度跟注：权益不足时继续投入，注意下注尺度和对手价值范围。';score=25}if(a==='fold'&&e>.55&&!pre){error='过度弃牌：权益足够继续，避免被大尺寸下注自动吓退。';score=25}if(['bet','raise','jam'].includes(a)&&e<.3&&!pre){error='过度诈唬：缺少足够阻断牌、弃牌率或后续计划。';score=25}let evByAction=tree?.evByAction||strategy.evByAction||null,chosenEV=evByAction?.[sizeKey]??evByAction?.[key]??null,bestEV=evByAction?Math.max(...Object.values(evByAction)):null;return{base,score,error,remote,strategy,probability:prob,sizeKey,tree,evByAction,chosenEV,bestEV,evLoss:bestEV==null||chosenEV==null?null:Number((bestEV-chosenEV).toFixed(3))}}
-function pay(h,amount,who){let key=who==='hero'?'heroStack':'villainStack',n=Math.min(amount,h[key]);h[key]-=n;h.pot+=n;return n}function preflopBotDecision(h,facing){let strategy=GTO_ENGINE.strategyFor({hand:h.villain,pos:h.villainPos,facing:!!facing,bot:h.bot});h.lastBotStrategy=strategy;return GTO_ENGINE.weightedChoice(strategy)}function botDecision(h,context={}){if(h.street==='preflop')return preflopBotDecision(h,context.facing);let p=BOT[h.bot]||BOT.solver,e=weightedRangeEquity(h.villain,h.board,h.heroRange),made=h.board.length>=3?evaluate([...h.villain,...h.board])[0][0]:0,draw=h.board.length>0&&texture(h.board)!=='干燥面',strategy=GTO_ENGINE.postflopStrategy({equity:e,pot:h.pot,toCall:context.toCall||0,street:h.street,pos:h.villainPos,madeStrength:made,draw,betFraction:.5,stack:h.villainStack,bot:h.bot}),tree=context.toCall?strategy.defenseTree:strategy.sizeTree,key=tree?GTO_ENGINE.weightedChoiceActions(tree):(e>.55?'call':'fold');h.lastBotStrategy=strategy;h.botActionKey=key;if(key==='fold')return'fold';if(key==='call'||key==='check')return'call';return key.startsWith('raise')||key==='jam'?'raise':'call'}
-function advanceStreet(h){if(h.street==='preflop'){h.board.push(...h.deck.splice(0,3));h.street='flop'}else if(h.street==='flop'){h.board.push(h.deck.shift());h.street='turn'}else if(h.street==='turn'){h.board.push(h.deck.shift());h.street='river'}else return showdown();h.toCall=0;h.line='对手过牌，你可以行动';return h}
-function nextStreet(h){if(h.pos==='BB'&&h.street!=='preflop'){let e=weightedRangeEquity(h.villain,h.board,h.heroRange),made=h.board.length>=3?evaluate([...h.villain,...h.board])[0][0]:0,strategy=GTO_ENGINE.postflopStrategy({equity:e,pot:h.pot,toCall:0,street:h.street,pos:h.villainPos,madeStrength:made,draw:h.board.length>0&&texture(h.board)!=='干燥面',betFraction:.5,stack:h.villainStack,bot:h.bot}),tree=strategy.sizeTree,d=tree?GTO_ENGINE.weightedChoiceActions(tree):GTO_ENGINE.weightedChoice({fold:0,call:strategy.check,raise:strategy.bet});h.lastBotStrategy=strategy;updateObservedRange(h,'villain',d==='check'?'check':'bet');if(d!=='check'){let size=tree?.sizes?.find(x=>x.key===d),n=size?.key==='jam'?h.villainStack:Math.max(2,Math.round(h.pot*(size?.fraction||.5)));pay(h,n,'villain');h.toCall=n;h.botBetSize=size?.key||'bet50';h.line=h.villainPos+' 下注 '+n;return h}h.line=h.villainPos+' 过牌，你可以行动'}return advanceStreet(h)}
-function response(h,amount){let d=botDecision(h,{facing:true,toCall:amount});updateObservedRange(h,'villain',d);if(d==='fold'){h.line=h.villainPos+' 弃牌';finish('villainFold');return}if(d==='raise'){let tree=h.lastBotStrategy?.defenseTree,key=h.botActionKey||'raise50',size=tree?.sizes?.find(x=>x.key===key),n=key==='jam'?h.villainStack:Math.max(amount*2,Math.round(h.pot*(size?.fraction||.5)));pay(h,n,'villain');h.toCall=Math.max(0,n-amount);h.line=h.villainPos+' '+treeActionLabel(key)+' 到 '+n;return}pay(h,amount,'villain');h.toCall=0;h.line=h.villainPos+' 跟注';h.street==='river'?showdown():advanceStreet(h)}
+function pay(h,amount,who){let key=who==='hero'?'heroStack':'villainStack',n=Math.min(Math.max(0,Number(amount)||0),h[key]);h[key]-=n;h.pot+=n;let streetKey=who==='hero'?'heroStreetContribution':'villainStreetContribution';h[streetKey]=(h[streetKey]||0)+n;return n}function preflopBotDecision(h,facing){let strategy=GTO_ENGINE.strategyFor({hand:h.villain,pos:h.villainPos,facing:!!facing,bot:h.bot});h.lastBotStrategy=strategy;return GTO_ENGINE.weightedChoice(strategy)}function botDecision(h,context={}){if(h.street==='preflop')return preflopBotDecision(h,context.facing);let p=BOT[h.bot]||BOT.solver,e=weightedRangeEquity(h.villain,h.board,h.heroRange),made=h.board.length>=3?evaluate([...h.villain,...h.board])[0][0]:0,draw=h.board.length>0&&texture(h.board)!=='干燥面',strategy=GTO_ENGINE.postflopStrategy({equity:e,pot:h.pot,toCall:context.toCall||0,street:h.street,pos:h.villainPos,madeStrength:made,draw,betFraction:.5,stack:h.villainStack,bot:h.bot}),tree=context.toCall?strategy.defenseTree:strategy.sizeTree,key=tree?GTO_ENGINE.weightedChoiceActions(tree):(e>.55?'call':'fold');h.lastBotStrategy=strategy;h.botActionKey=key;if(key==='fold')return'fold';if(key==='call'||key==='check')return'call';return key.startsWith('raise')||key==='jam'?'raise':'call'}
+function advanceStreet(h){if(h.street==='preflop'){h.board.push(...h.deck.splice(0,3));h.street='flop'}else if(h.street==='flop'){h.board.push(h.deck.shift());h.street='turn'}else if(h.street==='turn'){h.board.push(h.deck.shift());h.street='river'}else return showdown();h.toCall=0;h.heroStreetContribution=0;h.villainStreetContribution=0;h.lastFullRaise=2;h.line='对手过牌，你可以行动';return h}
+function nextStreet(h){if(h.pos==='BB'&&h.street!=='preflop'){let e=weightedRangeEquity(h.villain,h.board,h.heroRange),made=h.board.length>=3?evaluate([...h.villain,...h.board])[0][0]:0,strategy=GTO_ENGINE.postflopStrategy({equity:e,pot:h.pot,toCall:0,street:h.street,pos:h.villainPos,madeStrength:made,draw:h.board.length>0&&texture(h.board)!=='干燥面',betFraction:.5,stack:h.villainStack,bot:h.bot}),tree=strategy.sizeTree,d=tree?GTO_ENGINE.weightedChoiceActions(tree):GTO_ENGINE.weightedChoice({fold:0,call:strategy.check,raise:strategy.bet});h.lastBotStrategy=strategy;updateObservedRange(h,'villain',d==='check'?'check':'bet');if(d!=='check'){let size=tree?.sizes?.find(x=>x.key===d),n=size?.key==='jam'?h.villainStack:Math.max(2,Math.round(h.pot*(size?.fraction||.5)));pay(h,n,'villain');h.toCall=n;h.lastFullRaise=n;h.botBetSize=size?.key||'bet50';h.line=h.villainPos+' 下注 '+n;return h}h.line=h.villainPos+' 过牌，你可以行动'}return advanceStreet(h)}
+function response(h,amount){let heroTarget=h.heroStreetContribution||amount,villainContribution=h.villainStreetContribution||0,villainToCall=Math.max(0,heroTarget-villainContribution),d=botDecision(h,{facing:true,toCall:villainToCall});updateObservedRange(h,'villain',d);if(d==='fold'){h.line=h.villainPos+' 弃牌';finish('villainFold');return}if(d==='raise'){let tree=h.lastBotStrategy?.defenseTree,key=h.botActionKey||'raise50',size=tree?.sizes?.find(x=>x.key===key),n=key==='jam'?h.villainStack+villainContribution:Math.max(heroTarget*2,Math.round(h.pot*(size?.fraction||.5))),payAmount=Math.max(0,n-villainContribution);pay(h,payAmount,'villain');h.lastFullRaise=Math.max(h.lastFullRaise||2,n-villainContribution);h.toCall=Math.max(0,n-(h.heroStreetContribution||0));h.line=h.villainPos+' '+treeActionLabel(key)+' 到 '+n;return}pay(h,villainToCall,'villain');h.toCall=0;h.line=h.villainPos+' 跟注';h.street==='river'?showdown():advanceStreet(h)}
 function updateSpotStats(h,a,r){G.session.spots=G.session.spots||{};let k=spotKey(h),v=G.session.spots[k]||(G.session.spots[k]={n:0,score:0,evLoss:0,actions:{}});v.n++;v.score+=r.score;v.evLoss+=r.evLoss||0;v.actions[a]=(v.actions[a]||0)+1}
 function record(h,a,r){updateObservedRange(h,'hero',a);let strategy=r.strategy?{actionKeys:r.strategy.actionKeys||[],fold:r.strategy.fold,call:r.strategy.call,raise:r.strategy.raise,check:r.strategy.check,bet:r.strategy.bet}:null,size=r.preflopRaiseTo?`开到 ${r.preflopRaiseTo}`:(r.sizeKey&&r.sizeKey!=='raise'?r.sizeKey:sizeLabel(h));h.decisions.push({street:h.street,position:h.pos,texture:texture(h.board),facing:h.toCall>0,action:a,betSize:size,optimal:r.base,score:r.score,probability:r.probability,strategy,actionTree:r.tree?{actionKeys:r.tree.actionKeys,...Object.fromEntries((r.tree.actionKeys||[]).map(x=>[x,r.tree[x]]))}:null,sizeTree:r.strategy?.sizeTree?{actionKeys:r.strategy.sizeTree.actionKeys,...Object.fromEntries((r.strategy.sizeTree.actionKeys||[]).map(x=>[x,r.strategy.sizeTree[x]]))}:null,evByAction:r.evByAction,chosenEV:r.chosenEV,bestEV:r.bestEV,evLoss:r.evLoss,equity:h.lastEquity,pot:h.pot,toCall:h.toCall,error:r.error,remote:r.remote?.name||'',rangeTop:GTO_ENGINE.topRange(h.heroRange,3).map(x=>x.hand)});let st=G.session.streets[h.street];st.n++;st.score+=r.score;G.session.decisions++;G.session.total+=r.score;G.session.evLoss=(G.session.evLoss||0)+(r.evLoss||0);G.session.actions[a]=(G.session.actions[a]||0)+1;updateSpotStats(h,a,r);if(r.score>=80)G.session.good++;if(a==='call'&&r.base!=='call')G.session.errors.overcall++;if(a==='fold'&&r.base!=='fold')G.session.errors.overfold++;if(['bet','raise','jam'].includes(a)&&!['bet','raise'].includes(r.base))G.session.errors.overbluff++}
 function act(a){let h=G.hand;if(G.done)return;let e=h.board.length?weightedRangeEquity(h.hero,h.board,h.villainRange):0,r=assess(h,e,a),amount=null;if(['bet','raise','jam'].includes(a)){amount=a==='jam'||h.betSize==='all'?h.heroStack:(h.street==='preflop'?Math.max(3,Math.round(h.pot*Number(h.betSize||.5))):Math.round(h.pot*Number(h.betSize||.5)));if(h.street==='preflop')r.preflopRaiseTo=amount}h.lastEquity=e;h.score=r.score;record(h,a,r);if(a==='fold'){finish('heroFold');return}if(a==='check'){h.line='你过牌';h.street==='river'?showdown():nextStreet(h)}else if(a==='call'){pay(h,h.toCall,'hero');h.toCall=0;h.line='你跟注';h.street==='river'?showdown():advanceStreet(h)}else{pay(h,amount,'hero');h.line=a==='jam'||h.betSize==='all'?'你全押':h.street==='preflop'?`你开到 ${amount}`:`你下注 ${amount}`;response(h,amount)}if(!G.done)showNode(h,r,a);render()}
@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=14').catch(()=>{}))}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=29').catch(()=>{}))}
 </script>
 <script>
 (function(){
@@ -171,12 +171,12 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventLis
   };
   window.act=function(a){
     const h=G.hand;if(G.done)return;
-    const before=snapshot(h),e=h.board.length?weightedRangeEquity(h.hero,h.board,h.villainRange):0,r=window.assess(h,e,a);let amount=null;
-    if(['bet','raise','jam'].includes(a)){if(a==='jam'||h.betSize==='all')amount=h.heroStack;else if(h.street==='preflop'){const m=Number(h.preflopSize||2.5);amount=h.toCall>0?Math.max(h.toCall,roundBB(h.toCall*m)):roundBB(m)}else amount=Math.round(h.pot*Number(h.betSize||.5));if(h.street==='preflop')r.preflopRaiseTo=amount}
+    const before=snapshot(h),e=weightedRangeEquity(h.hero,h.board,h.villainRange),r=window.assess(h,e,a);let amount=null;
+    if(['bet','raise','jam'].includes(a)){if(a==='jam'||h.betSize==='all')amount=h.heroStack;else if(h.street==='preflop'){const m=Number(h.preflopSize||2.5),requested=roundBB(h.toCall>0?h.toCall*m:m),minimumTo=h.toCall>0?h.toCall+Math.max(h.toCall,Number(h.lastFullRaise||h.toCall)):requested,target=h.toCall>0?Math.max(minimumTo,h.toCall+requested):requested;amount=Math.min(h.heroStack,Math.max(0,target-(h.heroStreetContribution||0)))}else{const requested=Math.round(h.pot*Number(h.betSize||.5)),minimumTo=h.toCall>0?h.toCall+Math.max(h.toCall,Number(h.lastFullRaise||h.toCall)):requested,target=h.toCall>0?Math.max(minimumTo,h.toCall+requested):requested;amount=Math.min(h.heroStack,Math.max(0,target-(h.heroStreetContribution||0)))}if(h.street==='preflop')r.preflopRaiseTo=amount}
     h.lastEquity=e;h.score=r.score;record(h,a,r);
     if(a==='fold'){logEvent(h,'hero','fold',before,snapshot(h),0);window.finish('heroFold');return}
     if(a==='check'){h.line='你过牌';logEvent(h,'hero','check',before,snapshot(h),0);h.street==='river'?showdown():window.nextStreet(h)}
-    else if(a==='call'){pay(h,h.toCall,'hero');h.toCall=0;h.line='你跟注';logEvent(h,'hero','call',before,snapshot(h),before.toCall);h.street==='river'?showdown():advanceStreet(h)}
+    else if(a==='call'){pay(h,Math.min(h.toCall,h.heroStack),'hero');h.toCall=0;h.line='你跟注';logEvent(h,'hero','call',before,snapshot(h),before.toCall);h.street==='river'?showdown():advanceStreet(h)}
     else{pay(h,amount,'hero');h.line=a==='jam'||h.betSize==='all'?'你全押':h.street==='preflop'?'你开到 '+amount:'你下注 '+amount;logEvent(h,'hero',a,before,snapshot(h),before.heroStack-h.heroStack);window.response(h,amount)}
     if(!G.done)showNode(h,r,a);render();
   };
@@ -193,13 +193,13 @@ if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventLis
   };
   window.newHand=function(){
     const seed=seedInput.value.trim()||randomSeed();G.rng=makeRng(seed);Math.random=G.rng;
-    legacyNewHand();G.hand.seed=seed;G.hand.actionLog=[];G.hand.initialPot=G.hand.pot;G.hand.initialToCall=G.hand.toCall;G.hand.initialStack=G.hand.heroStack;G.hand.contributions={hero:0,villain:0};G.hand.preflopSize=G.hand.preflopSize||2.5;seedBadge.textContent='牌局码 '+seed;render();
+    legacyNewHand();G.hand.seed=seed;G.hand.actionLog=[];G.hand.initialPot=G.hand.pot;G.hand.initialToCall=G.hand.toCall;G.hand.initialStack=G.hand.heroStack;G.hand.contributions={hero:0,villain:0};G.hand.heroStreetContribution=0;G.hand.villainStreetContribution=Number(G.hand.toCall||0);G.hand.lastFullRaise=Number(G.hand.toCall||2);G.hand.preflopSize=G.hand.preflopSize||2.5;seedBadge.textContent='牌局码 '+seed;render();
   };
   replayButton.onclick=()=>{if(!G.hand?.seed)return;seedInput.value=G.hand.seed;window.newHand();seedInput.value=''};
   copyButton.onclick=async()=>{if(!G.hand?.seed)return;try{await navigator.clipboard.writeText(G.hand.seed);copyButton.textContent='已复制';setTimeout(()=>copyButton.textContent='复制牌局码',900)}catch(e){seedInput.value=G.hand.seed;seedInput.select()}};
   const newBtn=$('newBtn');if(newBtn)newBtn.onclick=window.newHand;
   $('tableMode').onchange=window.newHand;$('scenario').onchange=window.newHand;
-  const footer=document.querySelector('.footer');if(footer)footer.textContent='当前为第六阶段：固定种子可重现牌局，翻前支持 2.0x/2.2x/2.5x/3.0x/4.0x 尺寸树；每个动作记录街道、投入、底池、筹码和牌面。当前模型仍是可解释的近似训练模型，不等同于完整 GTO 求解器。';
+  const footer=document.querySelector('.footer');if(footer)footer.textContent='当前为阶段 5–9 增强基准：真实 6-max 行动顺序、翻前精确尺寸树、翻后防守/加注树、ICM 近似复盘、机器人风格档案、玩家评级与可审计策略证据均已接入。没有真实 solver 数据的节点仍明确标为近似策略，不等同于完整 GTO 求解器。';
   window.newHand();
 })();
 window.parseImported=function(text){
@@ -368,9 +368,9 @@ window.parseImported=function(text){
   const evidenceFor=hand=>{
     const context=STRATEGY_PACKS.contextFromHand(hand,{texture});
     const match=STRATEGY_PACKS.matchBest(allPacks(),context);
-    if(!match)return{status:'approximate',label:'近似策略 · 未覆盖节点',detail:'当前节点没有可审计 solver 策略包覆盖；评分来自本地近似模型，不应视为 GTO。',context};
-    if(!match.trust.qualified)return{status:'unverified',label:'未验证包命中',detail:'已找到 '+match.pack.name+' '+match.pack.version+'，但完整性或 solver 审核未通过；不会改变评分。',match,context};
-    return{status:'verified',label:'Solver 已验证 · '+match.pack.name,detail:'命中 '+match.node.id+' · '+match.pack.source.solver+' · '+match.pack.version+' · '+match.match.coverage+' 覆盖。',match,context};
+    if(!match)return{status:'approximate',confidence:.1,label:'近似策略 · 未覆盖节点',detail:'当前节点没有可审计 solver 策略包覆盖；评分来自本地近似模型，不应视为 GTO。',context};
+    if(!match.trust.qualified)return{status:'unverified',confidence:.25,label:'未验证包命中',detail:'已找到 '+match.pack.name+' '+match.pack.version+'，但完整性或 solver 审核未通过；不会改变评分。',match,context};
+    return{status:'verified',confidence:match.match.coverage==='exact'?1:.85,label:'Solver 已验证 · '+match.pack.name,detail:'命中 '+match.node.id+' · '+match.pack.source.solver+' · '+match.pack.version+' · '+match.match.coverage+' 覆盖。',match,context};
   };
   window.remoteAdvice=function(hand){const evidence=evidenceFor(hand);return evidence.status==='verified'?{name:evidence.match.pack.name,action:null,evidence}:null};
   const legacyAssess=window.assess;
@@ -812,7 +812,365 @@ window.parseImported=function(text){
   window.renderDashboard=function(){oldDashboard();renderProfile()};
   const oldRender=window.render;
   window.render=function(){oldRender();renderHero()};
-  renderHero();renderProfile();
+renderHero();renderProfile();
+})();
+</script>
+<script>
+window.__POKER_TRAINER__={getRuntime:()=>({G,act:window.act,assess:window.assess})};
+</script>
+<script type="module">
+ import * as CORE from './core/index.mjs?v=29';
+
+window.POKER_CORE=CORE;
+window.POKER_CORE_STATUS='ready';
+
+const runtime=()=>window.__POKER_TRAINER__?.getRuntime?.();
+const number=value=>Number.isFinite(Number(value))?Number(value):0;
+const plannedAmount=(hand,action)=>{
+  if(action==='jam'||hand.betSize==='all')return number(hand.heroStack);
+  if(hand.street==='preflop'){
+    const multiple=number(hand.preflopSize||2.5),requested=Math.round((hand.toCall>0?hand.toCall*multiple:multiple)*10)/10;
+    const minimumTo=hand.toCall>0?hand.toCall+Math.max(hand.toCall,number(hand.lastFullRaise||hand.toCall)):requested;
+    const target=hand.toCall>0?Math.max(minimumTo,hand.toCall+requested):requested;
+    return Math.min(number(hand.heroStack),Math.max(0,target-number(hand.heroStreetContribution||0)));
+  }
+  const requested=Math.round(number(hand.pot)*number(hand.betSize||.5));
+  const minimumTo=hand.toCall>0?hand.toCall+Math.max(hand.toCall,number(hand.lastFullRaise||hand.toCall)):requested;
+  const target=hand.toCall>0?Math.max(minimumTo,hand.toCall+requested):requested;
+  return Math.min(number(hand.heroStack),Math.max(0,target-number(hand.heroStreetContribution||0)));
+};
+const makeCoreState=hand=>{
+  const heroContribution=Math.max(0,number(hand.heroStreetContribution));
+  const villainContribution=Math.max(0,number(hand.villainStreetContribution));
+  const pot=Math.max(0,number(hand.pot));
+  const state=CORE.createHand({
+    buttonIndex:0,
+    blinds:{small:1,big:2},
+    players:[
+      {id:'hero',position:hand.pos||'BTN',stack:Math.max(0,number(hand.heroStack))},
+      {id:'villain',position:hand.villainPos||'BB',stack:Math.max(0,number(hand.villainStack))},
+    ],
+  });
+  state.status='active';state.street=hand.street;state.board=[...(hand.board||[])];state.pendingDeal=false;state.toAct=0;
+  state.players[0].stack=Math.max(0,number(hand.heroStack));state.players[1].stack=Math.max(0,number(hand.villainStack));
+  state.players[0].status=state.players[0].stack===0?'all-in':'active';state.players[1].status=state.players[1].stack===0?'all-in':'active';
+  state.players[0].streetContribution=heroContribution;state.players[1].streetContribution=villainContribution;
+  state.players[0].committedTotal=heroContribution;state.players[1].committedTotal=Math.max(villainContribution,pot-heroContribution);
+  state.currentBet=Math.max(heroContribution,villainContribution,heroContribution+Math.max(0,number(hand.toCall)));
+  state.lastFullRaise=Math.max(.01,number(hand.lastFullRaise||2));state.pot=pot;
+  state.players.forEach(player=>{player.actedSinceFullRaise=false});
+  return state;
+};
+const coreActionFor=(hand,action)=>action==='jam'?'all-in':action==='raise'&&number(hand.toCall)===0?'bet':action;
+const auditHeroAction=(hand,action)=>{
+  const state=makeCoreState(hand),type=coreActionFor(hand,action),legal=CORE.getLegalActions(state,'hero');
+  const available=legal.find(item=>item.type===type);
+  if(!available)return{ok:false,state,legal,error:`核心规则拒绝该行动：${type} 不在合法行动集合（${legal.map(item=>item.type).join('、')}）中。`};
+  try{
+    const amount=type==='bet'||type==='raise'?number(hand.heroStreetContribution)+plannedAmount(hand,action):undefined;
+    CORE.act(state,{playerId:'hero',type,to:amount});
+    return{ok:true,state,legal,action:type,amount};
+  }catch(error){return{ok:false,state,legal,error:`核心规则拒绝该下注尺度：${error.message}`};}
+};
+
+const legacyAssess=window.assess;
+if(typeof legacyAssess==='function')window.assess=(hand,equity,action)=>{
+  const result=legacyAssess(hand,equity,action);
+  const compared=CORE.compareActionEV(result.evByAction||{});
+  const chosen=result.chosenEV??compared.actionEV[result.sizeKey]??compared.actionEV[action]??null;
+  if(compared.bestEV!==null&&chosen!==null){
+    const scored=CORE.scoreDecision({chosenEV:chosen,bestEV:compared.bestEV,referencePot:Math.max(1,number(hand.pot)),source:result.strategyEvidence?.status==='verified'?'solver-verified':'approximate'});
+    result.coreEV=scored;
+    if(scored.status!=='unscored'){result.score=scored.score;result.evLoss=scored.evLoss;result.bestEV=compared.bestEV;result.chosenEV=Number(chosen);}
+  }else result.coreEV={status:'unscored',source:'approximate',score:null,evLoss:null};
+  if(hand.scenario==='icm'&&Array.isArray(hand.icmStacks)&&Array.isArray(hand.icmPayouts)){
+    const heroIndex=Number.isInteger(hand.icmHeroIndex)?hand.icmHeroIndex:0;
+    const before=CORE.calculateICM(hand.icmStacks,hand.icmPayouts).equity[heroIndex];
+    const decision=CORE.icmDecisionValue({stacks:hand.icmStacks,payouts:hand.icmPayouts,heroIndex,lossAmount:hand.toCall,winAmount:hand.pot,winProbability:Number(equity)||0,loseProbability:1-(Number(equity)||0)});
+    result.icm={mode:'tournament',before,decisionValue:decision.value,bubbleFactor:decision.bubbleFactor,pressure:decision.pressure,action};
+    result.error=(result.error||'')+` ICM 近似：当前奖池权益 ${(before*100).toFixed(1)}%，该行动后的决策价值 ${(decision.value*100).toFixed(1)}%，${decision.label||'需要结合名次压力判断'}。`;
+  }
+  return result;
+};
+
+const legacyRecord=window.record;
+if(typeof legacyRecord==='function')window.record=function(hand,action,result){
+  const value=legacyRecord(hand,action,result),latest=hand.decisions?.[hand.decisions.length-1];
+  if(latest){latest.icm=result.icm||null;latest.coreEV=result.coreEV||null;}
+  return value;
+};
+
+const legacyShowNode=window.showNode;
+if(typeof legacyShowNode==='function')window.showNode=function(hand,result,action){
+  legacyShowNode(hand,result,action);
+  if(result.icm){const review=document.getElementById('review');if(review&&!review.querySelector('.icm-note'))review.insertAdjacentHTML('beforeend',`<p class="evidence-note icm-note"><b>ICM 复盘：</b>当前奖池权益 ${(result.icm.before*100).toFixed(1)}% · 行动后决策价值 ${(result.icm.decisionValue*100).toFixed(1)}% · 泡沫因子 ${result.icm.bubbleFactor==null?'—':result.icm.bubbleFactor}。这是基于当前简化奖金结构的 ICM 近似，不是完整赛事求解器输出。</p>`)}
+};
+
+const legacyAct=window.act;
+if(typeof legacyAct==='function')window.act=function(action){
+  const current=runtime(),hand=current?.G?.hand;
+  if(!hand||current.G.done)return legacyAct(action);
+  const audit=auditHeroAction(hand,action);
+  hand.coreAudit={version:CORE.CORE_VERSION,rulesVersion:CORE.RULES_VERSION,action,legalActions:audit.legal.map(item=>item.type),accepted:audit.ok};
+  if(!audit.ok){
+    const prompt=document.getElementById('prompt');
+    if(prompt)prompt.textContent=audit.error;
+    hand.ruleError=audit.error;
+    return;
+  }
+  return legacyAct(action);
+};
+
+const badge=document.createElement('span');
+badge.className='badge';badge.textContent='核心规则已接入';
+document.querySelector('.table-head')?.appendChild(badge);
+
+const coreLegacyNewHand=window.newHand;
+const coreLegacyRender=window.render;
+const coreLegacyRenderActions=window.renderActions;
+const coreLegacyFinish=window.finish;
+const coreLegacyAct=window.act;
+const coreSixMaxMode=()=>['random','adaptive'].includes(document.getElementById('scenario')?.value)&&document.getElementById('tableMode')?.value==='6max';
+const coreSeed=()=>document.getElementById('seedInput')?.value.trim()||`sixmax-${Date.now()}`;
+const coreHeroPosition=seed=>CORE.SIX_MAX_POSITIONS[Math.abs([...String(seed)].reduce((sum,char)=>sum+char.charCodeAt(0),0))%CORE.SIX_MAX_POSITIONS.length];
+const coreStrategyResolver=({table,state,player})=>{
+  const packs=[...(runtime()?.G?.online?.packs||[])].filter(pack=>pack?.format===STRATEGY_PACKS?.FORMAT||pack?.kind==='strategy');
+  const opponentAction=[...state.actionLog].reverse().find(item=>!item.forced&&item.playerId!==player.id);
+  const opponent=state.players.find(item=>item.id===opponentAction?.playerId)||state.players.find(item=>item.id!==player.id&&item.position==='BB')||state.players.find(item=>item.id!==player.id);
+  const activePlayers=state.players.filter(item=>item.status!=='folded').length;
+  const handContext={tableMode:'6max',players:state.players.length,activePlayers,heroStack:Number(table.stackBB||100),street:state.street,pos:player.position,villainPos:opponent?.position||'BB',toCall:CORE.getCallAmount(state,player.id),potBB:CORE.getPot(state),potType:state.players.filter(item=>item.status!=='folded').length>2?'multiway':'heads-up',icmMode:Boolean(table.tournament),board:[...state.board],lineKey:state.actionLog.filter(item=>!item.forced).map(item=>item.type).join('>')};
+  const context=STRATEGY_PACKS?.contextFromHand?.(handContext,{texture})||handContext;
+  if(!packs.length)return{status:'approximate',label:'近似策略 · 未覆盖节点',detail:'当前没有可用策略包；机器人使用近似模型。',context};
+  const match=STRATEGY_PACKS?.matchBest?.(packs,context);
+  if(!match)return{status:'approximate',label:'近似策略 · 未覆盖节点',detail:'当前节点没有策略包覆盖；机器人使用近似模型。',context};
+  if(!match.trust?.qualified)return{status:'unverified',label:'未验证包命中',detail:`已匹配 ${match.pack?.name||'策略包'}，但未通过外部审核；机器人不会使用其频率。`,match,context};
+  return{status:'verified',confidence:match.match?.coverage==='exact'?1:.85,label:`Solver 已验证 · ${match.pack.name}`,detail:`命中 ${match.node.id} · ${match.pack.source?.solver||'solver'} · ${match.pack.version}`,frequencies:match.frequencies,nodeId:match.node.id,match,context};
+};
+const coreSync=(hand)=>{
+  const view=CORE.syncTrainingTable(hand.coreTable),state=hand.coreTable.state,actor=CORE.currentPlayer(hand.coreTable);
+  const lastOpponentAction=[...state.actionLog].reverse().find(item=>!item.forced&&item.playerId!==hand.coreTable.heroId);
+  const opponents=view.players.filter(player=>player.id!==hand.coreTable.heroId&&player.status!=='folded');
+  const opponent=lastOpponentAction?view.players.find(player=>player.id===lastOpponentAction.playerId):null;
+  const displayedOpponent=opponent||opponents.find(player=>player.position==='BB')||opponents[0];
+  hand.hero=view.hero;hand.board=view.board;hand.pot=view.pot;hand.street=view.street;hand.heroStack=view.heroStack;hand.toCall=actor?.id===hand.coreTable.heroId?CORE.getCallAmount(state,hand.coreTable.heroId):0;
+  hand.heroStreetContribution=CORE.heroPlayer(hand.coreTable)?.streetContribution||0;
+  hand.villainPos=displayedOpponent?.position||hand.villainPos||'—';hand.villainStack=displayedOpponent?.stack||0;hand.line=actor?.id===hand.coreTable.heroId?'轮到你行动':actor?`${actor.position} 行动中`:'牌局结束';
+  hand.coreActionLog=view.actionLog;hand.coreStrategyStats=view.strategyStats||{};hand.coreICM=view.icm||null;hand.showVillain=view.ended;hand.corePlayers=view.players;
+  hand.seats=view.players.map(player=>({pos:player.position,name:player.id===hand.coreTable.heroId?'你':'对手',status:player.id===hand.coreTable.heroId?'hero':player.status,bot:player.botStyle||'solver',stack:player.stack,cards:player.holeCards}));
+  const result=view.result;
+  if(result){
+    const heroPots=(result.potWinners||[]).filter(pot=>pot.winnerIds?.includes(hand.coreTable.heroId));
+    const won=heroPots.length>0,split=heroPots.some(pot=>pot.winnerIds.length>1),payout=Number(result.payouts?.[hand.coreTable.heroId]||0).toFixed(2);
+    hand.result=won?(split?'你平分部分底池':'你赢下底池'):'对手赢下底池';
+    hand.resultDetail=`${won?(split?'你平分部分底池':'你获得底池'):'对手获得底池'}；你获得 ${payout} BB；总投入 ${Number(view.actionLog.reduce((sum,item)=>sum+Number(item.paid||0),0)).toFixed(2)} BB。`;
+  }
+  hand.botName=displayedOpponent?.botStyle?({solver:'近似平衡型',pressure:'高压进攻型',sticky:'粘性跟注型',trapper:'陷阱型'}[displayedOpponent.botStyle]||'近似机器人'):'多路训练桌';
+  const equitySignature=`${state.status}|${state.street}|${state.board.join(',')}|${state.toAct}|${state.actionLog.length}`;
+  if(actor?.id===hand.coreTable.heroId&&!hand.coreTable.ended&&hand.coreEquitySignature!==equitySignature){
+    hand.coreEquity=CORE.estimateHeroEquity(hand.coreTable);
+    hand.coreEquitySignature=equitySignature;
+    hand.lastEquity=hand.coreEquity.equity;
+    hand.lastEquityMeta=hand.coreEquity;
+  }
+  return hand;
+};
+const coreMakeHand=()=>{
+  const scenarioKey=document.getElementById('scenario')?.value||'random',seed=coreSeed(),heroPosition=coreHeroPosition(seed),isICM=scenarioKey==='icm',table=CORE.createSixMaxTrainingTable({seed,heroPosition,stack:100,tournament:isICM?{payouts:[.5,.3,.2]}:undefined,strategyResolver:coreStrategyResolver});
+  const icmStacks=isICM?table.state.players.map(player=>Number((player.stack+player.committedTotal).toFixed(2))):null,icmPayouts=isICM?[.5,.3,.2]:null,icmHeroIndex=isICM?table.state.players.findIndex(player=>player.id===table.heroId):null;
+  const hand={coreMode:true,coreTable:table,seed,scenario:scenarioKey,tableMode:'6max',pos:heroPosition,villainPos:'—',hero:[],villain:[],board:[],pot:0,toCall:0,heroStack:100,villainStack:100,street:'preflop',bot:'solver',botName:'多路训练桌',decisions:[],betSize:.5,coreBetFraction:.5,showVillain:false,line:'等待行动',icmStacks,icmPayouts,icmHeroIndex};
+  const rt=runtime();rt.G.hand=hand;rt.G.done=false;window.initRanges?.(hand);coreSync(hand);return hand;
+};
+const coreActionTarget=(hand,actionType)=>{
+  const state=hand.coreTable.state,actor=CORE.heroPlayer(hand.coreTable),legal=CORE.legalHeroActions(hand.coreTable),action=legal.find(item=>item.type===actionType);
+  if(!action)return null;if(actionType==='all-in'||actionType==='call'||actionType==='check'||actionType==='fold')return actionType==='call'?undefined:undefined;
+  const fraction=hand.coreBetFraction==='all'?1.25:Number(hand.coreBetFraction||.5),base=state.currentBet>actor.streetContribution?state.currentBet:actor.streetContribution;
+  return Number(Math.max(action.minTo,Math.min(action.maxTo,(base+CORE.getPot(state)*fraction))).toFixed(2));
+};
+window.renderActions=function(){
+  const hand=runtime()?.G?.hand;if(!hand?.coreMode)return coreLegacyRenderActions();
+  if(hand.coreTable.ended){$('sizeRow').innerHTML='';$('actions').innerHTML='<button class="call" id="nextBtn">下一手</button>';$('nextBtn').onclick=window.newHand;return}
+  const legal=CORE.legalHeroActions(hand.coreTable),types=new Set(legal.map(item=>item.type));
+  const sizes=[['.33','33%'],['.5','50%'],['.75','75%'],['1.25','125%'],['all','全押']];
+  $('sizeRow').innerHTML=sizes.map(item=>`<button class="${item[0]==='all'?(hand.coreBetFraction==='all'?'active':''):Number(item[0])===Number(hand.coreBetFraction)?'active':''}" data-core-size="${item[0]}">${item[1]}</button>`).join('');
+  $('sizeRow').querySelectorAll('button').forEach(button=>button.onclick=()=>{hand.coreBetFraction=button.dataset.coreSize==='all'?'all':Number(button.dataset.coreSize);window.renderActions()});
+  const choices=[];
+  if(types.has('fold'))choices.push(['fold','弃牌']);
+  if(types.has('check'))choices.push(['check','过牌']);
+  if(types.has('call'))choices.push(['call',`跟注 ${Number(CORE.getCallAmount(hand.coreTable.state,hand.coreTable.heroId)).toFixed(2)}`]);
+  const aggressive=legal.find(item=>item.type==='bet'||item.type==='raise');
+  if(aggressive)choices.push([aggressive.type,`${aggressive.type==='bet'?'下注':'加注'} 至 ${coreActionTarget(hand,aggressive.type)}`]);
+  if(types.has('all-in'))choices.push(['jam','全押']);
+  $('actions').innerHTML=choices.map(item=>`<button class="${item[0]==='fold'?'fold':item[0]==='call'||item[0]==='check'?'call':item[0]==='jam'?'jam':'raise'}" data-core-action="${item[0]}">${item[1]}</button>`).join('');
+  $('actions').querySelectorAll('button').forEach(button=>button.onclick=()=>window.act(button.dataset.coreAction));
+};
+const renderPlayerProfile=()=>{
+  const session=runtime()?.G?.session;if(!session||typeof CORE.summarizePlayerProfile!=='function')return null;
+  const profile=CORE.summarizePlayerProfile(session);session.profile=profile;
+  const grade=document.getElementById('levelGrade'),text=document.getElementById('levelText'),ring=document.getElementById('levelRing');
+  const hasRating=Number.isFinite(profile.rating);
+  if(grade)grade.textContent=hasRating?`${profile.grade} · ${profile.label}`:'— · 样本期';
+  if(text)text.textContent=hasRating?`训练评级 ${profile.rating}/100 · 可信度 ${profile.confidence}% · ${profile.confidenceNote} 下一重点：${profile.nextFocus}。`:`尚未完成有效决策 · 可信度 ${profile.confidence}% · ${profile.confidenceNote}`;
+  if(ring){const fill=hasRating?Math.max(8,profile.rating):8;ring.style.background=`conic-gradient(var(--green) 0 ${fill}%,#263a51 ${fill}% 100%)`}
+  return profile;
+};
+window.render=function(){const hand=runtime()?.G?.hand;if(hand?.coreMode)coreSync(hand);const result=coreLegacyRender();renderPlayerProfile();return result};
+const coreFinish=reason=>{const hand=runtime()?.G?.hand;if(!hand?.coreMode)return coreLegacyFinish(reason);hand.showVillain=true;coreSync(hand);const stats=hand.coreStrategyStats||{};hand.resultDetail=`${hand.resultDetail||''}${hand.resultDetail?'；':''}本桌策略节点：已验证 ${stats.verified||0}，未验证 ${stats.unverified||0}，近似 ${stats.approximate||0}。`;const result=coreLegacyFinish(reason);const latest=runtime()?.G?.session?.history?.[0];if(latest){latest.botStrategyStats={...stats};latest.playerProfile=renderPlayerProfile();try{localStorage.setItem('pokerTrainerStats',JSON.stringify(runtime().G.session))}catch(e){}}return result};
+window.finish=coreFinish;
+window.act=function(action){
+  const rt=runtime(),hand=rt?.G?.hand;if(!hand?.coreMode)return coreLegacyAct(action);
+  if(hand.coreTable.ended)return;
+  const map=action==='jam'?'all-in':action,legal=CORE.legalHeroActions(hand.coreTable),allowed=legal.find(item=>item.type===map);
+  if(!allowed){$('prompt').textContent=`核心规则拒绝该行动：${action}。当前合法行动：${legal.map(item=>item.type).join('、')}`;return}
+  const equity=Number.isFinite(hand.coreEquity?.equity)?hand.coreEquity.equity:0.5,result=window.assess?.(hand,equity,action)||{base:action,score:null,error:'核心多路牌局已执行'};
+  hand.lastEquity=equity;hand.score=result.score;hand.lastICM=result.icm||hand.lastICM||null;window.record?.(hand,action,result);window.showNode?.(hand,result,action);
+  try{
+    CORE.applyHeroAction(hand.coreTable,{type:map,to:coreActionTarget(hand,map)});coreSync(hand);
+    if(hand.coreTable.ended){rt.G.done=true;coreFinish(hand.result||'showdown');return}
+    $('prompt').textContent=`${hand.villainPos||'桌上玩家'} 已行动；当前轮到你。`;
+    window.render();
+  }catch(error){hand.ruleError=error.code||error.message;$('prompt').textContent=`核心牌局错误：${error.message}`;}
+};
+window.newHand=function(){if(!coreSixMaxMode())return coreLegacyNewHand();const hand=coreMakeHand();const review=document.getElementById('review');if(review){review.className='review';review.innerHTML='<div class="panel-title">节点复盘 <span>行动后显示</span></div><div class="empty">先独立判断，再选择行动。牌局结束后会自动归档。</div>'}window.render();if(hand.coreTable.ended)coreFinish('showdown')};
+if(document.getElementById('newBtn'))document.getElementById('newBtn').onclick=()=>window.newHand();
+if(document.getElementById('tableMode'))document.getElementById('tableMode').onchange=()=>window.newHand();
+if(document.getElementById('scenario'))document.getElementById('scenario').onchange=()=>window.newHand();
+if(coreSixMaxMode())window.newHand();
+</script>
+<script>
+(function(){
+  const review=document.getElementById('review');
+  if(!review)return;
+  let syncing=false;
+  const issueFor=decision=>{
+    const explicit=String(decision?.error||'').match(/过度(?:跟注|弃牌|诈唬)/);
+    if(explicit)return explicit[0];
+    if(decision?.action===decision?.optimal)return'主线一致';
+    if(decision?.action==='call'&&decision?.optimal!=='call')return'过度跟注';
+    if(decision?.action==='fold'&&decision?.optimal!=='fold')return'过度弃牌';
+    if(['bet','raise','jam'].includes(decision?.action)&&!['bet','raise'].includes(decision?.optimal))return'主动性/诈唬频率偏高';
+    if(['check','call'].includes(decision?.action)&&['bet','raise'].includes(decision?.optimal))return'价值或保护不足';
+    return'行动尺度或线路不一致';
+  };
+  const inRange=decision=>Number(decision?.probability)>=.15&&Number(decision?.score)>=55&&!/过度/.test(String(decision?.error||''));
+  const sync=()=>{
+    if(syncing)return;
+    const runtime=window.__POKER_TRAINER__?.getRuntime?.();
+    const hand=runtime?.G?.hand;
+    if(!(hand?.done||runtime?.G?.done)||!Array.isArray(hand.decisions))return;
+    const rows=[...review.querySelectorAll('.decision-row')];
+    if(!rows.length)return;
+    syncing=true;
+    hand.decisions.forEach((decision,index)=>{
+      const row=rows[index];
+      if(!row)return;
+      const ok=inRange(decision),label=ok?'策略频率内':issueFor(decision),score=Number(decision.score);
+      row.classList.toggle('good',ok);
+      row.classList.toggle('warn',!ok&&score>=55);
+      row.classList.toggle('bad',!ok&&score<55);
+      const data=row.querySelector('.decision-data');
+      if(data){const nextData=data.innerHTML.replace(/策略频率内|主线一致|过度跟注|过度弃牌|主动性\/诈唬频率偏高|价值或保护不足|行动尺度或线路不一致/g,label);if(nextData!==data.innerHTML)data.innerHTML=nextData}
+    });
+    const problem=[...new Set(hand.decisions.filter(decision=>!inRange(decision)).map(issueFor))];
+    const summary=[...review.querySelectorAll('p')].find(node=>node.textContent.includes('本手问题'));
+    if(summary){const nextSummary=`<b>本手问题：</b>${problem.length?problem.join('、'):'没有明显偏离当前基准频率。'}`;if(summary.innerHTML!==nextSummary)summary.innerHTML=nextSummary}
+    const icm=[...hand.decisions].reverse().map(decision=>decision.icm).find(Boolean)||hand.lastICM;
+    if(icm&&!review.querySelector('.icm-note')){
+      const note=document.createElement('p');
+      note.className='evidence-note icm-note';
+      note.innerHTML=`<b>ICM 复盘：</b>当前奖池权益 ${(Number(icm.before)*100).toFixed(1)}% · 行动后决策价值 ${(Number(icm.decisionValue)*100).toFixed(1)}% · 泡沫因子 ${icm.bubbleFactor==null?'—':icm.bubbleFactor}。这是基于当前简化奖金结构的 ICM 近似，不是完整赛事求解器输出。`;
+      review.appendChild(note);
+    }
+    syncing=false;
+  };
+  new MutationObserver(sync).observe(review,{childList:true,subtree:true});
+  setTimeout(sync,0);
+})();
+</script>
+<script>
+(function(){
+  const style=document.createElement('style');
+  style.textContent=`@media(max-width:420px){
+    .toolbar{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:5px!important}
+    .toolbar #seedInput{grid-column:span 2!important}
+    .toolbar #copySeedBtn{font-size:0!important}
+    .toolbar #copySeedBtn:after{content:'复制';font-size:11px}
+    .toolbar #scenario{grid-column:span 2!important}
+    .update-launcher{position:static!important;display:block!important;width:max-content;margin:10px 10px 0 auto;padding:8px 10px;font-size:11px}
+  }`;
+  document.head.appendChild(style);
+})();
+</script>
+<script>
+/* Phase 18: strategy coverage audit and leak-weighted adaptive curriculum. */
+(function(){
+  'use strict';
+  const init=()=>{
+    const CORE=window.POKER_CORE;
+    if(!CORE?.auditStrategyCoverage||!CORE?.deriveTrainingCurriculum){setTimeout(init,25);return}
+    const style=document.createElement('style');style.textContent=`.audit-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:10px}.audit-metric{padding:10px;border:1px solid #2b4157;border-radius:9px;background:#0d1724}.audit-metric small{display:block;color:#91a4b7;font-size:10px}.audit-metric b{display:block;margin-top:5px;color:#dff8ee;font-size:18px}.audit-note{margin-bottom:10px;padding:10px;border:1px solid #3a536b;border-radius:9px;background:#0b1723;color:#b8ccdc;font-size:11px;line-height:1.6}.audit-note b{color:#f0c766}.audit-section{margin-top:10px;padding:11px;border:1px solid #2b3d50;border-radius:9px;background:#0c151f}.audit-title{display:flex;justify-content:space-between;gap:10px;margin-bottom:7px;color:#dceaf5;font-size:12px;font-weight:800}.audit-title span{color:#8499ac;font-size:10px;font-weight:400}.audit-list{display:grid;gap:6px}.audit-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;border:1px solid #223449;border-radius:7px;background:#101d2b;color:#c6d6e3;font-size:11px;line-height:1.45}.audit-row b{display:block;color:#e6f1f8}.audit-row span{display:block;color:#91a7b9}.audit-empty{padding:9px;color:#8296a9;font-size:11px}.curriculum-row button{flex:none;border:1px solid #6edeb4;border-radius:6px;background:#49c798;color:#06261b;padding:6px 10px;font:800 11px inherit;cursor:pointer}@media(max-width:640px){.audit-summary-grid{grid-template-columns:repeat(2,1fr)}.audit-row{align-items:flex-start;flex-direction:column}.curriculum-row button{width:100%}}`;document.head.appendChild(style);
+    const analytics=document.querySelector('.analytics-room')||document.querySelector('.analytics-dock');
+    const tabs=analytics?.querySelector('.tabs');
+    if(!analytics||!tabs)return;
+    let button=tabs.querySelector('[data-tab="audit"]'),panel=document.getElementById('tab-audit');
+    if(!button){
+      button=document.createElement('button');button.dataset.tab='audit';button.textContent='策略审计';tabs.appendChild(button);
+      panel=document.createElement('div');panel.id='tab-audit';panel.className='tab-panel';panel.innerHTML=`
+        <div class="audit-summary-grid">
+          <div class="audit-metric"><small>复盘节点</small><b id="auditTotal">—</b></div>
+          <div class="audit-metric"><small>已审核命中</small><b id="auditVerified">—</b></div>
+          <div class="audit-metric"><small>未覆盖</small><b id="auditUncoveredCount">—</b></div>
+          <div class="audit-metric"><small>当前可信度</small><b id="auditConfidence">—</b></div>
+        </div>
+        <div id="auditTrustNote" class="audit-note"></div>
+        <div class="audit-section"><div class="audit-title">覆盖分布 <span>按街道、位置、底池类型</span></div><div id="auditBuckets" class="audit-list"></div></div>
+        <div class="audit-section"><div class="audit-title">未覆盖节点 <span>这些节点不会被标记为 GTO</span></div><div id="auditUncovered" class="audit-list"></div></div>
+        <div class="audit-section"><div class="audit-title">自适应训练课程 <span>按你的失分和错误排序</span></div><div id="auditCurriculum" class="audit-list"></div></div>`;
+      analytics.appendChild(panel);
+      button.onclick=()=>{
+        tabs.querySelectorAll('button').forEach(item=>item.classList.remove('active'));
+        analytics.querySelectorAll('.tab-panel').forEach(item=>item.classList.remove('active'));
+        button.classList.add('active');panel.classList.add('active');
+      };
+    }
+    const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const statusLabel={verified:'已审核',unverified:'未审核命中',approximate:'近似/未覆盖'};
+    const formatBucket=bucket=>{const [street,hero,villain,pot,mode]=String(bucket).split('|');return`${({preflop:'翻前',flop:'翻牌',turn:'转牌',river:'河牌'}[street]||street)} · ${hero||'—'} vs ${villain||'—'} · ${pot||'未知底池'} · ${mode==='icm'?'ICM':'现金'}`};
+    const previousRecord=window.record;
+    if(!window.__PHASE18_RECORD_WRAPPED){
+      window.__PHASE18_RECORD_WRAPPED=true;
+      window.record=function(hand,action,result){
+        const value=previousRecord?.apply(this,arguments),latest=hand?.decisions?.[hand.decisions.length-1];
+        if(latest){latest.scenario=hand.scenario||'';latest.tableMode=hand.tableMode||'';latest.villainPosition=hand.villainPos||'';latest.players=hand.corePlayers?.length||(hand.tableMode==='6max'?6:2);latest.activePlayers=hand.corePlayers?.filter(player=>player.status!=='folded').length||null;latest.potType=hand.corePlayers?(hand.corePlayers.filter(player=>player.status!=='folded').length>2?'multiway':'heads-up'):null;latest.icmMode=Boolean(hand.icmStacks||hand.icmPayouts)}
+        return value;
+      };
+    }
+    const render=()=>{
+      const runtime=window.__POKER_TRAINER__?.getRuntime?.(),session=runtime?.G?.session||{history:[]},packs=(runtime?.G?.online?.packs||[]).filter(pack=>pack?.kind==='strategy'||pack?.format==='poker-trainer-strategy-pack/v1');
+      const contexts=CORE.strategyContextsFromSession(session);
+      const trustedAudits=packs.filter(pack=>pack.verification?.auditTrusted&&pack.verification?.integrityValid).map(pack=>({payloadSha256:pack.integrity?.payloadSha256,sourceUrl:pack.source?.url,solver:pack.source?.solver,packName:pack.name,packVersion:pack.version}));
+      const audit=CORE.auditStrategyCoverage(packs,contexts,{trustedAudits}),curriculum=CORE.deriveTrainingCurriculum(session);
+      const count=audit.counts,confidence=curriculum.confidence;
+      document.getElementById('auditTotal').textContent=count.total;
+      document.getElementById('auditVerified').textContent=`${count.verified} · ${Math.round(audit.verifiedCoverage*100)}%`;
+      document.getElementById('auditUncoveredCount').textContent=count.approximate;
+      document.getElementById('auditConfidence').textContent=`${confidence}%`;
+      const qualified=audit.packs.filter(pack=>pack.qualified).length;
+      document.getElementById('auditTrustNote').innerHTML=packs.length?`已加载 ${packs.length} 个策略包，其中 ${qualified} 个通过当前运行时可信审核；${count.total?`本次复盘已审核命中 ${count.verified}/${count.total} 个节点。`:'完成牌局后这里会显示节点覆盖。'} <b>未覆盖或未审核的节点仍按近似模型处理。</b>`:'当前没有策略包。所有机器人行动与复盘均明确标记为近似策略，不能视为 GTO；导入经过外部审核登记的包后才会改变节点证据等级。';
+      const buckets=document.getElementById('auditBuckets');
+      buckets.innerHTML=audit.byBucket.length?audit.byBucket.slice(0,10).map(row=>`<div class="audit-row"><b>${escapeHTML(formatBucket(row.bucket))}</b><span>${row.verified}/${row.total} 已审核 · ${row.unverified} 未审核 · ${row.approximate} 近似</span></div>`).join(''):'<div class="audit-empty">完成牌局后生成覆盖分布。</div>';
+      const uncovered=document.getElementById('auditUncovered');
+      const unique=[];for(const row of audit.uncoveredContexts){if(!unique.some(item=>item.contextKey===row.contextKey))unique.push(row)}
+      uncovered.innerHTML=unique.length?unique.slice(0,8).map(row=>`<div class="audit-row"><b>${escapeHTML(row.street)} · ${escapeHTML(row.heroPosition||'—')} vs ${escapeHTML(row.villainPosition||'—')}</b><span>${escapeHTML(row.potType||'未知底池')} · ${row.icmMode?'ICM':'现金'} · ${escapeHTML(row.coverage)}</span></div>`).join(''):'<div class="audit-empty">当前复盘样本没有未覆盖节点，或还没有完成有效决策。</div>';
+      const curriculumHost=document.getElementById('auditCurriculum');
+      curriculumHost.innerHTML=curriculum.targets.length?curriculum.targets.slice(0,5).map((target,index)=>{const error=target.dominantError?` · 主要问题 ${escapeHTML(target.dominantError)}`:'';const action=target.scenario&&document.querySelector(`#scenario option[value="${CSS.escape(target.scenario)}"]`)?`<button type="button" data-curriculum-scenario="${escapeHTML(target.scenario)}">开始</button>`:'';return`<div class="audit-row curriculum-row"><div><b>${index+1}. ${escapeHTML(target.reason)}</b><span>${escapeHTML(target.context.street||'')} · ${escapeHTML(target.context.heroPosition||'—')} · 样本 ${target.samples} · 平均分 ${target.averageScore??'—'} · 优先级 ${target.priority}${error}</span></div>${action}</div>`}).join(''):'<div class="audit-empty">完成至少一个有效决策后生成自适应课程。</div>';
+      curriculumHost.querySelectorAll('[data-curriculum-scenario]').forEach(action=>action.onclick=()=>{const select=document.getElementById('scenario');if(select){select.value=action.dataset.curriculumScenario;window.newHand?.()}});
+      window.PHASE18={audit,curriculum,renderAudit:render};
+    };
+    const legacyRender=window.render;
+    window.render=function(){const result=legacyRender?.apply(this,arguments);render();return result};
+    render();
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 </body>

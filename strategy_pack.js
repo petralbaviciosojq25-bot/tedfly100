@@ -41,13 +41,16 @@
     const match=node?.match||{};
     if(match.street!==context.street||match.heroPosition!==context.heroPosition||match.villainPosition!==context.villainPosition)return null;
     if(match.players!=null&&Number(match.players)!==Number(context.players))return null;
+    if(match.activePlayers!=null&&Number(match.activePlayers)!==Number(context.activePlayers))return null;
+    if(match.potType!=null&&match.potType!==context.potType)return null;
+    if(match.icmMode!=null&&Boolean(match.icmMode)!==Boolean(context.icmMode))return null;
     if(match.facingBet!=null&&Boolean(match.facingBet)!==Boolean(context.facingBet))return null;
     if(match.stackBB!=null&&Math.abs(Number(match.stackBB)-Number(context.stackBB))>Number(match.stackToleranceBB??.5))return null;
     if(match.board&& !sameBoard(match.board,context.board||[]))return null;
     if(match.texture&&match.texture!==context.texture)return null;
     if(match.lineKey&&match.lineKey!==context.lineKey)return null;
     let specificity=3;
-    for(const key of ['players','facingBet','stackBB','board','texture','lineKey'])if(match[key]!=null)specificity++;
+    for(const key of ['players','activePlayers','potType','icmMode','facingBet','stackBB','board','texture','lineKey'])if(match[key]!=null)specificity++;
     return{specificity,coverage:match.board||match.lineKey?'exact':'constrained'};
   }
   function qualification(pack){
@@ -76,7 +79,7 @@
   function contextFromHand(hand,helpers={}){
     const texture=helpers.texture?helpers.texture(hand.board||[]):'';
     const players=hand.tableMode==='heads'?2:6;
-    return{players,stackBB:Number(hand.heroStack||100),street:hand.street,heroPosition:hand.pos,villainPosition:hand.villainPos,facingBet:Number(hand.toCall||0)>0,board:[...(hand.board||[])],texture,lineKey:hand.lineKey||''};
+    return{players:Number(hand.players||players),activePlayers:Number(hand.activePlayers||hand.players||players),stackBB:Number(hand.heroStack||100),street:hand.street,heroPosition:hand.pos,villainPosition:hand.villainPos,facingBet:Number(hand.toCall||0)>0,potType:hand.potType||'',icmMode:Boolean(hand.icmMode),board:[...(hand.board||[])],texture,lineKey:hand.lineKey||''};
   }
   window.STRATEGY_PACKS={FORMAT,ACTIONS,validate,normalizedFrequency,matchNode,matchBest,qualification,contextFromHand};
 })();

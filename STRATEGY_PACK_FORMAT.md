@@ -2,6 +2,8 @@
 
 策略包格式为 `poker-trainer-strategy-pack/v1`，只接受具有明确游戏规则、来源、求解器名称、版本、下注树和节点频率的 JSON 文件。
 
+节点的 `match` 还可以声明 `activePlayers`、`potType`（`heads-up` 或 `multiway`）和 `icmMode`，用于区分真实多人行动线与赛事压力节点。命中精确公共牌/行动线时置信度为 1；只有约束条件命中时为 0.85；未审核或未覆盖节点不会进入机器人频率采样。
+
 ## 可信度规则
 
 - `unverified`：可以保存和查看，但绝不影响“solver 基准”评分。
