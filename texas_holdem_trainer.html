@@ -101,7 +101,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.que
 document.querySelector('#updateLauncher').onclick=openOnline;document.querySelector('#closeOnline').onclick=closeOnline;document.querySelector('#onlineModal').onclick=e=>{if(e.target.id==='onlineModal')closeOnline()};document.querySelector('#fetchSource').onclick=fetchOnlineSource;document.querySelector('#saveBot').onclick=saveBotOnline;document.querySelector('#saveModel').onclick=saveModelOnline;try{for(const p of JSON.parse(localStorage.getItem('pokerTrainerPacks')||'[]'))applyPack(p);G.online.bots=JSON.parse(localStorage.getItem('pokerTrainerBots')||'[]');G.online.models=JSON.parse(localStorage.getItem('pokerTrainerModels')||'[]')}catch(e){}renderOnlineCatalog();
 </script>
 <script>
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',async()=>{try{const version='34',registration=await navigator.serviceWorker.register(`./sw.js?v=${version}`,{updateViaCache:'none'}),reloadKey=`poker-trainer-sw-${version}-reloaded`;await registration.update();const reloadAfterClaim=()=>{if(sessionStorage.getItem(reloadKey))return;sessionStorage.setItem(reloadKey,'1');location.reload()};navigator.serviceWorker.addEventListener('controllerchange',reloadAfterClaim,{once:true});if(registration.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'})}catch(e){}})}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',async()=>{try{const version='37',registration=await navigator.serviceWorker.register(`./sw.js?v=${version}`,{updateViaCache:'none'}),reloadKey=`poker-trainer-sw-${version}-reloaded`;await registration.update();const reloadAfterClaim=()=>{if(sessionStorage.getItem(reloadKey))return;sessionStorage.setItem(reloadKey,'1');location.reload()};navigator.serviceWorker.addEventListener('controllerchange',reloadAfterClaim,{once:true});if(registration.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'})}catch(e){}})}
 </script>
 <script>
 (function(){
@@ -820,7 +820,7 @@ renderHero();renderProfile();
 window.__POKER_TRAINER__={getRuntime:()=>({G,act:window.act,assess:window.assess})};
 </script>
  <script type="module">
-  import * as CORE from './core/index.mjs?v=34';
+  import * as CORE from './core/index.mjs?v=37';
 
 window.POKER_CORE=CORE;
 window.POKER_CORE_STATUS='ready';
@@ -964,13 +964,20 @@ const coreStrategyResolver=({table,state,player})=>{
 const coreSync=(hand)=>{
   const view=CORE.syncTrainingTable(hand.coreTable),state=hand.coreTable.state,actor=CORE.currentPlayer(hand.coreTable);
   const heroId=hand.coreTable.heroId;
-  hand.actionLog=view.actionLog.filter(item=>!item.forced).map((item,index)=>({
-    ...item,
-    seq:index+1,
-    actor:item.playerId===heroId?'hero':'bot',
-    action:item.type,
-    amount:Number(item.paid||0),
-  }));
+  hand.actionLog=view.actionLog.filter(item=>!item.forced).map((item,index)=>{
+    const beforeStacks=item.stacksBefore||{},afterStacks=item.stacksAfter||{},otherBefore=Object.keys(beforeStacks).find(id=>id!==heroId),otherAfter=Object.keys(afterStacks).find(id=>id!==heroId);
+    return {
+      ...item,
+      seq:index+1,
+      actor:item.playerId===heroId?'hero':'bot',
+      action:item.type,
+      amount:Number(item.paid||0),
+      heroStackBefore:beforeStacks[heroId],
+      heroStackAfter:afterStacks[heroId],
+      villainStackBefore:otherBefore==null?undefined:beforeStacks[otherBefore],
+      villainStackAfter:otherAfter==null?undefined:afterStacks[otherAfter],
+    };
+  });
   const lastOpponentAction=[...state.actionLog].reverse().find(item=>!item.forced&&item.playerId!==hand.coreTable.heroId);
   const opponents=view.players.filter(player=>player.id!==hand.coreTable.heroId&&player.status!=='folded');
   const opponent=lastOpponentAction?view.players.find(player=>player.id===lastOpponentAction.playerId):null;
@@ -1369,6 +1376,328 @@ if(coreSixMaxMode())window.newHand();
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
+</script>
+<script type="module">
+  /*
+  import { buildReplayTimeline, replayAt, replayTapeFromHand } from './core/replay.mjs?v=37';
+
+  const bootPhase22Replay = () => {
+    if (window.__PHASE22_REPLAY_READY) return;
+    const runtime = () => window.__POKER_TRAINER__?.getRuntime?.();
+    const historyPanel = document.getElementById('tab-history');
+    const historyList = document.getElementById('history');
+    if (!historyPanel || !historyList) return;
+
+    window.__PHASE22_REPLAY_READY = true;
+    const style = document.createElement('style');
+    style.textContent = `
+      .phase22-replay-panel{margin-top:12px;padding:12px;border:1px solid #2b4a61;border-radius:10px;background:linear-gradient(180deg,#0d1b29,#09131e);color:#d9e7f1}
+      .phase22-replay-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+      .phase22-replay-head h3{margin:0;font-size:13px}.phase22-replay-head span{color:#8fa9bc;font-size:10px}
+      .phase22-replay-state{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+      .phase22-replay-state div{padding:7px;border:1px solid #263d52;border-radius:7px;background:#101e2c;font-size:10px}
+      .phase22-replay-state b{display:block;margin-top:3px;color:#fff;font-size:12px}
+      .phase22-replay-board{min-height:24px;padding:7px;border-radius:7px;background:#07111b;color:#d7f1e8;font-size:11px}
+      .phase22-replay-controls{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:6px;margin-top:9px}
+      .phase22-replay-controls button{min-height:30px;padding:5px 9px;border:1px solid #3a5870;border-radius:6px;background:#172b3e;color:#dbeaf5;font:inherit;font-size:11px;cursor:pointer}
+      .phase22-replay-controls button[data-replay-play]{border-color:#63dcae;color:#bdf4df}.phase22-replay-controls input{width:100%;accent-color:#63dcae}
+      .phase22-replay-note{margin-top:7px;color:#9db2c3;font-size:10px;line-height:1.5}.phase22-replay-note code{color:#f0d184}
+      .phase22-replay-open{float:right;margin-top:5px;padding:4px 7px;border:1px solid #4e6b81;border-radius:5px;background:#15283a;color:#cfe0ed;font:inherit;font-size:10px;cursor:pointer}
+      .phase22-replay-open:hover,.phase22-replay-controls button:hover{filter:brightness(1.14)}
+      @media(max-width:640px){.phase22-replay-state{grid-template-columns:repeat(2,1fr)}.phase22-replay-controls{grid-template-columns:auto auto 1fr auto}.phase22-replay-panel{padding:10px}}
+    `;
+    document.head.appendChild(style);
+
+    const panel = document.createElement('section');
+    panel.className = 'phase22-replay-panel';
+    panel.setAttribute('aria-label', '逐步复盘回放');
+    panel.innerHTML = `
+      <div class="phase22-replay-head"><h3>逐步复盘回放</h3><span data-replay-status>先从手牌历史选择一手牌</span></div>
+      <div class="phase22-replay-state">
+        <div>街道<b data-replay-street>—</b></div><div>行动<b data-replay-action>—</b></div><div>底池<b data-replay-pot>—</b></div><div>跟注<b data-replay-call>—</b></div>
+      </div>
+      <div class="phase22-replay-board" data-replay-board>尚未选择回放记录。</div>
+      <div class="phase22-replay-controls">
+        <button type="button" data-replay-prev aria-label="上一步">◀</button>
+        <button type="button" data-replay-play>播放</button>
+        <input type="range" data-replay-slider min="0" max="0" value="0" step="1" aria-label="回放进度">
+        <button type="button" data-replay-next aria-label="下一步">▶</button>
+      </div>
+      <div class="phase22-replay-note" data-replay-note>回放使用保存的事件轨迹，不会重新计算或伪造 Solver 答案。</div>
+    `;
+    historyPanel.appendChild(panel);
+
+    const refs = {
+      status: panel.querySelector('[data-replay-status]'),
+      street: panel.querySelector('[data-replay-street]'),
+      action: panel.querySelector('[data-replay-action]'),
+      pot: panel.querySelector('[data-replay-pot]'),
+      call: panel.querySelector('[data-replay-call]'),
+      board: panel.querySelector('[data-replay-board]'),
+      note: panel.querySelector('[data-replay-note]'),
+      slider: panel.querySelector('[data-replay-slider]'),
+      play: panel.querySelector('[data-replay-play]'),
+    };
+    const state = { tape: null, timeline: [], step: 0, timer: null };
+    const labels = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌' };
+    const actions = { fold: '弃牌', check: '过牌', call: '跟注', bet: '下注', raise: '加注', jam: '全押', 'all-in': '全押', 'small-blind': '小盲', 'big-blind': '大盲' };
+    const chips = value => Number.isFinite(Number(value)) ? `${Number(value).toFixed(Number(value)%1?2:0)} BB` : '—';
+
+    const renderReplay = () => {
+      const item = state.timeline[state.step];
+      if (!item) {
+        refs.status.textContent = '先从手牌历史选择一手牌';
+        refs.board.textContent = '尚未选择回放记录。';
+        return;
+      }
+      const event = item.event;
+      const snapshot = item.state;
+      const total = Math.max(0, state.timeline.length - 1);
+      refs.status.textContent = `${state.tape.context.scenario} · ${state.step}/${total} · ${state.tape.fingerprint}`;
+      refs.street.textContent = labels[snapshot.street] || snapshot.street;
+      refs.action.textContent = event ? `${event.actor === 'hero' ? '你' : event.actor} ${actions[event.action] || event.action}` : '起始状态';
+      refs.pot.textContent = chips(snapshot.pot);
+      refs.call.textContent = chips(snapshot.toCall);
+      refs.board.textContent = `公共牌：${snapshot.board.length ? snapshot.board.join(' ') : '尚未发牌'} · 你的筹码：${chips(snapshot.heroStack)} · 对手筹码：${chips(snapshot.villainStack)}`;
+      refs.note.textContent = event ? `第 ${item.step} 个事件：投入 ${chips(event.amount)}；当前回放只展示已记录状态。` : '起始状态：尚未执行任何行动。';
+      refs.slider.max = String(total);refs.slider.value = String(state.step);refs.play.textContent = state.timer ? '暂停' : '播放';
+    };
+    const stop = () => { if (state.timer) { clearInterval(state.timer); state.timer = null; renderReplay(); } };
+    const setStep = step => { stop(); state.step = Math.max(0, Math.min(Math.max(0, state.timeline.length - 1), Number(step) || 0)); renderReplay(); };
+    const selectReplay = index => {
+      const hand = runtime()?.G?.session?.history?.[Number(index)];
+      if (!hand) return;
+      state.tape = replayTapeFromHand(hand);
+      state.timeline = buildReplayTimeline(state.tape);
+      state.step = 0;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      renderReplay();
+    };
+    const decorateHistory = () => {
+      const rows = [...historyList.querySelectorAll('.history-row')];
+      rows.forEach((row, index) => {
+        if (row.querySelector('[data-replay-index]')) return;
+        const button = document.createElement('button');
+        button.type = 'button';button.className = 'phase22-replay-open';button.dataset.replayIndex = String(index);button.setAttribute('data-replay-index', String(index));button.textContent = '逐步回放';
+        button.setAttribute('aria-label', `回放第 ${index + 1} 手`);row.appendChild(button);
+      });
+    };
+    const previousHistory = window.renderHistory;
+    if (typeof previousHistory === 'function') {
+      window.renderHistory = function(...args) { const result = previousHistory.apply(this, args); decorateHistory(); return result; };
+    }
+    historyList.addEventListener('click', event => {
+      const button = event.target.closest('[data-replay-index]');
+      if (button) selectReplay(button.dataset.replayIndex);
+    });
+    panel.addEventListener('click', event => {
+      if (event.target.closest('[data-replay-prev]')) setStep(state.step - 1);
+      if (event.target.closest('[data-replay-next]')) setStep(state.step + 1);
+      if (event.target.closest('[data-replay-play]')) {
+        if (state.timer) stop();
+        else if (state.timeline.length > 1) { state.timer = setInterval(() => { if (state.step >= state.timeline.length - 1) stop(); else { state.step += 1; renderReplay(); } }, 760); renderReplay(); }
+      }
+    });
+    refs.slider.addEventListener('input', event => setStep(event.target.value));
+    panel.addEventListener('keydown', event => {
+      if (event.key === 'ArrowLeft') { event.preventDefault();setStep(state.step - 1); }
+      if (event.key === 'ArrowRight') { event.preventDefault();setStep(state.step + 1); }
+      if (event.key === ' ' && event.target === panel) { event.preventDefault();refs.play.click(); }
+    });
+    window.__PHASE22_REPLAY__ = { selectReplay, getState: () => ({ tape: state.tape, step: state.step, total: Math.max(0, state.timeline.length - 1) }) };
+    decorateHistory();renderReplay();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootPhase22Replay, { once: true }); else bootPhase22Replay();
+  */
+</script>
+<script type="module">
+  import { buildReplayTimeline, replayTapeFromHand } from './core/replay.mjs?v=37';
+
+  const bootPhase22ReplayV2 = () => {
+    if (window.__PHASE22_REPLAY_READY) return;
+    const runtime = () => window.__POKER_TRAINER__?.getRuntime?.();
+    const historyPanel = document.getElementById('tab-history');
+    const historyList = document.getElementById('history');
+    if (!historyPanel || !historyList) return;
+
+    window.__PHASE22_REPLAY_READY = true;
+    const ui = {
+      title: '\u9010\u6b65\u590d\u76d8\u56de\u653e',
+      choose: '\u5148\u4ece\u624b\u724c\u5386\u53f2\u9009\u62e9\u4e00\u624b\u724c',
+      empty: '\u5c1a\u672a\u9009\u62e9\u56de\u653e\u8bb0\u5f55\u3002',
+      street: '\u8857\u9053',
+      action: '\u884c\u52a8',
+      pot: '\u5e95\u6c60',
+      call: '\u8ddf\u6ce8',
+      board: '\u516c\u5171\u724c',
+      heroStack: '\u4f60\u7684\u7b79\u7801',
+      villainStack: '\u5bf9\u624b\u7b79\u7801',
+      start: '\u8d77\u59cb\u72b6\u6001',
+      event: '\u4e2a\u4e8b\u4ef6',
+      playback: '\u56de\u653e',
+    };
+    const style = document.createElement('style');
+    style.textContent = '.phase22-replay-panel{clear:both;margin-top:12px;padding:12px;border:1px solid #2b4a61;border-radius:10px;background:linear-gradient(180deg,#0d1b29,#09131e);color:#d9e7f1}.phase22-replay-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.phase22-replay-head h3{margin:0;font-size:13px}.phase22-replay-head span{color:#8fa9bc;font-size:10px}.phase22-replay-state{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}.phase22-replay-state div{padding:7px;border:1px solid #263d52;border-radius:7px;background:#101e2c;font-size:10px}.phase22-replay-state b{display:block;margin-top:3px;color:#fff;font-size:12px}.phase22-replay-board{min-height:24px;padding:7px;border-radius:7px;background:#07111b;color:#d7f1e8;font-size:11px}.phase22-replay-controls{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:6px;margin-top:9px}.phase22-replay-controls button{min-height:30px;padding:5px 9px;border:1px solid #3a5870;border-radius:6px;background:#172b3e;color:#dbeaf5;font:inherit;font-size:11px;cursor:pointer}.phase22-replay-controls button[data-replay-play]{border-color:#63dcae;color:#bdf4df}.phase22-replay-controls input{width:100%;accent-color:#63dcae}.phase22-replay-note{margin-top:7px;color:#9db2c3;font-size:10px;line-height:1.5}.phase22-replay-open{float:right;margin-top:5px;padding:4px 7px;border:1px solid #4e6b81;border-radius:5px;background:#15283a;color:#cfe0ed;font:inherit;font-size:10px;cursor:pointer}@media(max-width:640px){.phase22-replay-state{grid-template-columns:repeat(2,1fr)}.phase22-replay-panel{padding:10px}}';
+    document.head.appendChild(style);
+
+    const panel = document.createElement('section');
+    panel.className = 'phase22-replay-panel';
+    panel.tabIndex = 0;
+    panel.setAttribute('aria-label', ui.title);
+    panel.innerHTML = [
+      '<div class="phase22-replay-head"><h3>', ui.title, '</h3><span data-replay-status>', ui.choose, '</span></div>',
+      '<div class="phase22-replay-state">',
+      '<div>', ui.street, '<b data-replay-street>—</b></div>',
+      '<div>', ui.action, '<b data-replay-action>—</b></div>',
+      '<div>', ui.pot, '<b data-replay-pot>—</b></div>',
+      '<div>', ui.call, '<b data-replay-call>—</b></div></div>',
+      '<div class="phase22-replay-board" data-replay-board>', ui.empty, '</div>',
+      '<div class="phase22-replay-controls">',
+      '<button type="button" data-replay-prev aria-label="', '\u4e0a\u4e00\u6b65', '">◀</button>',
+      '<button type="button" data-replay-play>', '\u64ad\u653e', '</button>',
+      '<input type="range" data-replay-slider min="0" max="0" value="0" step="1" aria-label="', '\u56de\u653e\u8fdb\u5ea6', '">',
+      '<button type="button" data-replay-next aria-label="', '\u4e0b\u4e00\u6b65', '">▶</button></div>',
+      '<div class="phase22-replay-note" data-replay-note>', '\u56de\u653e\u4f7f\u7528\u5df2\u4fdd\u5b58\u7684\u4e8b\u4ef6\u8f68\u8ff9\uff0c\u4e0d\u4f1a\u91cd\u65b0\u8ba1\u7b97\u6216\u4f2a\u9020 Solver \u7b54\u6848\u3002', '</div>',
+    ].join('');
+    historyPanel.appendChild(panel);
+
+    const refs = {
+      status: panel.querySelector('[data-replay-status]'),
+      street: panel.querySelector('[data-replay-street]'),
+      action: panel.querySelector('[data-replay-action]'),
+      pot: panel.querySelector('[data-replay-pot]'),
+      call: panel.querySelector('[data-replay-call]'),
+      board: panel.querySelector('[data-replay-board]'),
+      note: panel.querySelector('[data-replay-note]'),
+      slider: panel.querySelector('[data-replay-slider]'),
+      play: panel.querySelector('[data-replay-play]'),
+    };
+    const state = { tape: null, timeline: [], step: 0, timer: null };
+    const labels = { preflop: '\u7ffb\u724c\u524d', flop: '\u7ffb\u724c', turn: '\u8f6c\u724c', river: '\u6cb3\u724c' };
+    const actions = { fold: '\u5f03\u724c', check: '\u8fc7\u724c', call: '\u8ddf\u6ce8', bet: '\u4e0b\u6ce8', raise: '\u52a0\u6ce8', jam: '\u5168\u538b', 'all-in': '\u5168\u538b' };
+    const chips = value => Number.isFinite(Number(value)) ? Number(value).toFixed(Number(value) % 1 ? 2 : 0) + ' BB' : '—';
+    const renderReplay = () => {
+      const item = state.timeline[state.step];
+      if (!item) {
+        refs.status.textContent = ui.choose;
+        refs.board.textContent = ui.empty;
+        return;
+      }
+      const event = item.event;
+      const snapshot = item.state;
+      const total = Math.max(0, state.timeline.length - 1);
+      refs.status.textContent = String(state.tape.context?.scenario || 'hand') + ' · ' + state.step + '/' + total + ' · ' + state.tape.fingerprint;
+      refs.street.textContent = labels[snapshot.street] || snapshot.street || '—';
+      refs.action.textContent = event ? (event.actor === 'hero' ? '你' : event.actor) + ' ' + (actions[event.action] || event.action) : ui.start;
+      refs.pot.textContent = chips(snapshot.pot);
+      refs.call.textContent = chips(snapshot.toCall);
+      refs.board.textContent = ui.board + '：' + (snapshot.board?.length ? snapshot.board.join(' ') : '\u5c1a\u672a\u53d1\u724c') + ' · ' + ui.heroStack + '：' + chips(snapshot.heroStack) + ' · ' + ui.villainStack + '：' + chips(snapshot.villainStack);
+      refs.note.textContent = event ? '第 ' + item.step + ' ' + ui.event + '：' + (actions[event.action] || event.action) + ' ' + chips(event.amount) : ui.start + '：\u5c1a\u672a\u6267\u884c\u4efb\u4f55\u884c\u52a8\u3002';
+      refs.slider.max = String(total);
+      refs.slider.value = String(state.step);
+      refs.play.textContent = state.timer ? '\u6682\u505c' : '\u64ad\u653e';
+    };
+    const stop = () => { if (state.timer) { clearInterval(state.timer); state.timer = null; renderReplay(); } };
+    const setStep = step => { stop(); state.step = Math.max(0, Math.min(Math.max(0, state.timeline.length - 1), Number(step) || 0)); renderReplay(); };
+    const selectReplay = index => {
+      const hand = runtime()?.G?.session?.history?.[Number(index)];
+      if (!hand) return;
+      state.tape = replayTapeFromHand(hand);
+      state.timeline = buildReplayTimeline(state.tape);
+      state.step = 0;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      renderReplay();
+    };
+    const decorateHistory = () => {
+      [...historyList.querySelectorAll('.history-row')].forEach((row, index) => {
+        if (row.querySelector('[data-replay-index]')) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'phase22-replay-open';
+        button.dataset.replayIndex = String(index);
+        button.setAttribute('data-replay-index', String(index));
+        button.textContent = ui.playback;
+        button.setAttribute('aria-label', '\u56de\u653e\u7b2c ' + (index + 1) + ' \u624b');
+        row.appendChild(button);
+      });
+    };
+    const previousHistory = window.renderHistory;
+    if (typeof previousHistory === 'function' && !previousHistory.__phase22ReplayWrapped) {
+      const wrappedHistory = function(...args) { const value = previousHistory.apply(this, args); decorateHistory(); return value; };
+      wrappedHistory.__phase22ReplayWrapped = true;
+      window.renderHistory = wrappedHistory;
+    }
+    historyList.addEventListener('click', event => {
+      const button = event.target.closest('[data-replay-index]');
+      if (button) selectReplay(button.dataset.replayIndex);
+    });
+    panel.addEventListener('click', event => {
+      if (event.target.closest('[data-replay-prev]')) setStep(state.step - 1);
+      if (event.target.closest('[data-replay-next]')) setStep(state.step + 1);
+      if (event.target.closest('[data-replay-play]')) {
+        if (state.timer) stop();
+        else if (state.timeline.length > 1) { state.timer = setInterval(() => { if (state.step >= state.timeline.length - 1) stop(); else { state.step += 1; renderReplay(); } }, 760); renderReplay(); }
+      }
+    });
+    refs.slider.addEventListener('input', event => setStep(event.target.value));
+    panel.addEventListener('keydown', event => {
+      if (event.key === 'ArrowLeft') { event.preventDefault(); setStep(state.step - 1); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); setStep(state.step + 1); }
+      if (event.key === ' ' && event.target === panel) { event.preventDefault(); refs.play.click(); }
+    });
+    window.__PHASE22_REPLAY__ = { selectReplay, getState: () => ({ tape: state.tape, step: state.step, total: Math.max(0, state.timeline.length - 1) }) };
+    decorateHistory();
+    renderReplay();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootPhase22ReplayV2, { once: true }); else bootPhase22ReplayV2();
+</script>
+<script type="module">
+  import { buildTrainingQueue, selectNextTrainingTask, summarizeTrainingQueue } from './core/training_queue.mjs?v=37';
+
+  const bootPhase23TrainingQueue = () => {
+    if (window.__PHASE23_TRAINING_QUEUE_READY) return;
+    const runtime = () => window.__POKER_TRAINER__?.getRuntime?.();
+    const host = document.getElementById('tab-analysis');
+    if (!host) return;
+    window.__PHASE23_TRAINING_QUEUE_READY = true;
+    const style = document.createElement('style');
+    style.textContent = '.phase23-training-queue{margin:12px 0;padding:12px;border:1px solid #355a6d;border-radius:10px;background:linear-gradient(135deg,#10232f,#0b1721);color:#deedf4}.phase23-training-queue-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.phase23-training-queue-head h3{margin:0;font-size:14px}.phase23-training-queue-head span{color:#9eb8c8;font-size:10px}.phase23-training-queue-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.phase23-training-task{display:flex;min-height:128px;flex-direction:column;justify-content:space-between;padding:9px;border:1px solid #294456;border-radius:8px;background:#0d1a25}.phase23-training-task strong{display:block;color:#f3fbff;font-size:12px}.phase23-training-task p{margin:6px 0;color:#a9c0cd;font-size:10px;line-height:1.5}.phase23-training-task .phase23-task-meta{color:#f1d48a;font-size:10px}.phase23-training-task button{margin-top:8px;padding:6px 8px;border:1px solid #5ed9b0;border-radius:6px;background:#185b4b;color:#dffcef;font:800 11px inherit;cursor:pointer}.phase23-training-empty{padding:8px;border:1px dashed #3b5262;border-radius:8px;color:#a9bdc8;font-size:11px}@media(max-width:700px){.phase23-training-queue-grid{grid-template-columns:1fr}.phase23-training-task{min-height:0}}';
+    document.head.appendChild(style);
+    const panel = document.createElement('section');
+    panel.className = 'phase23-training-queue';
+    panel.setAttribute('aria-label', '\u6f0f\u6d1e\u8bad\u7ec3\u961f\u5217');
+    panel.innerHTML = '<div class="phase23-training-queue-head"><h3>\u4e0b\u4e00\u7ec4\u8bad\u7ec3\u4efb\u52a1</h3><span data-phase23-queue-status>\u4ece\u4f60\u7684\u624b\u724c\u5386\u53f2\u81ea\u52a8\u63d0\u53d6</span></div><div class="phase23-training-queue-grid" data-phase23-queue-grid></div>';
+    host.appendChild(panel);
+    const grid = panel.querySelector('[data-phase23-queue-grid]');
+    const status = panel.querySelector('[data-phase23-queue-status]');
+    const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    const startScenario = scenario => {
+      const select = document.getElementById('scenario');
+      if (select && [...select.options].some(option => option.value === scenario)) select.value = scenario;
+      if (typeof window.newHand === 'function') window.newHand();
+      document.querySelector('.table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const render = () => {
+      const session = runtime()?.G?.session || { history: [] };
+      const queue = buildTrainingQueue(session, { limit: 3 });
+      const summary = summarizeTrainingQueue(session);
+      status.textContent = summary.urgent ? summary.urgent + ' \u4e2a\u9ad8\u4f18\u5148\u7ea7\u4efb\u52a1' : '\u6309\u5f97\u5206\u3001\u6f0f\u6d1e\u548c EV \u635f\u5931\u6392\u5e8f';
+      grid.innerHTML = queue.map((task, index) => '<article class="phase23-training-task"><div><strong>' + (index + 1) + '. ' + escapeHTML(task.title) + '</strong><p>' + escapeHTML(task.reason) + '</p><div class="phase23-task-meta">\u4f18\u5148\u7ea7 ' + escapeHTML(task.priority) + ' · ' + escapeHTML(task.sampleSize) + ' \u4e2a\u6837\u672c · ' + escapeHTML(task.scenario) + '</div></div><button type="button" data-phase23-scenario="' + escapeHTML(task.scenario) + '">\u5f00\u59cb\u8bad\u7ec3</button></article>').join('');
+      window.__PHASE23_TRAINING_QUEUE__ = { getQueue: () => buildTrainingQueue(runtime()?.G?.session || { history: [] }), getNext: () => selectNextTrainingTask(runtime()?.G?.session || { history: [] }) };
+    };
+    panel.addEventListener('click', event => {
+      const button = event.target.closest('[data-phase23-scenario]');
+      if (button) startScenario(button.dataset.phase23Scenario);
+    });
+    const previousDashboard = window.renderDashboard;
+    if (typeof previousDashboard === 'function' && !previousDashboard.__phase23TrainingQueueWrapped) {
+      const wrappedDashboard = function(...args) { const result = previousDashboard.apply(this, args); render(); return result; };
+      wrappedDashboard.__phase23TrainingQueueWrapped = true;
+      window.renderDashboard = wrappedDashboard;
+    }
+    render();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootPhase23TrainingQueue, { once: true }); else bootPhase23TrainingQueue();
 </script>
 </body>
 </html>

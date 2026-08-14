@@ -32,8 +32,8 @@ const html = fs.readFileSync(new URL('./texas_holdem_trainer.html', import.meta.
 const sw = fs.readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
 assert.match(html, /money=x=>\{const n=Number\(x\)/);
 assert.match(html, /hand\.actionLog=view\.actionLog\.filter\(item=>!item\.forced\)/);
-assert.match(html, /core\/index\.mjs\?v=34/);
-assert.match(sw, /poker-trainer-v34/);
+assert.match(html, /core\/index\.mjs\?v=37/);
+assert.match(sw, /poker-trainer-v37/);
 assert.match(html, /\.table\{isolation:isolate/);
 
 console.log(JSON.stringify({

@@ -24,7 +24,7 @@ assert.match(moduleScript, /coreStrategyResolver/, 'web adapter must define a st
 assert.match(moduleScript, /strategyResolver:coreStrategyResolver/, 'web adapter must connect the resolver to the six-max table');
 assert.match(moduleScript, /coreStrategyStats/, 'web adapter must preserve strategy evidence counts');
 assert.match(moduleScript, /botStrategyStats/, 'web adapter must persist strategy evidence in hand history');
-assert.match(html, /core\/index\.mjs\?v=34/, 'module cache version must be current');
+assert.match(html, /core\/index\.mjs\?v=37/, 'module cache version must be current');
 assert.match(html, /serviceWorker\.register\(`\.\/sw\.js\?v=\$\{version\}`/, 'service worker version must be current');
 
 class FakeElement {

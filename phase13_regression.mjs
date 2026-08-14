@@ -17,9 +17,9 @@ assert.match(html,/G\.session\.history=\[newest,\.\.\.historyBefore\]\.slice\(0,
 assert.match(html,/G\.session\.pfr=pfrBefore\+1/);
 assert.match(html,/return; \/\/ Replaced by the single-source Phase 13 layout below\./);
 assert.match(html,/serviceWorker\.register\(`\.\/sw\.js\?v=\$\{version\}`/);
-assert.match(sw,/poker-trainer-v34/);
+assert.match(sw,/poker-trainer-v37/);
 assert.match(sw,/core\/training_table\.mjs/);
-assert.match(entry,/location\.replace\('\.\/texas_holdem_trainer\.html\?v=34'\)/);
-assert.match(entry,/href="\.\/texas_holdem_trainer\.html\?v=34"/);
+assert.match(entry,/location\.replace\('\.\/texas_holdem_trainer\.html\?v=37'\)/);
+assert.match(entry,/href="\.\/texas_holdem_trainer\.html\?v=37"/);
 
 console.log('phase13 regression ok');

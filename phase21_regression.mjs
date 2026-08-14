@@ -49,7 +49,7 @@ assert.match(html, /rebuildTrainerSessionStats/);
 assert.match(html, /当前没有已通过可信审核的 Solver 节点/);
 assert.match(html, /setAttribute\('aria-controls','reviewDrawer'\)/);
 assert.match(html, /Phase 21: stale-stat migration/);
-assert.match(sw, /poker-trainer-v34/);
+assert.match(sw, /poker-trainer-v37/);
 assert.match(sw, /self\.skipWaiting\(\)/);
 assert.match(sw, /self\.clients\.claim\(\)/);
 assert.match(sw, /session_stats\.mjs/);
